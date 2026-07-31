@@ -1,0 +1,41 @@
+# Copy this file beside notify-me-on-discord and rename it to config.toml.
+
+[discord]
+# webhook_url = "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"
+# bot_token = "YOUR_BOT_TOKEN"
+webhook_name = "Notify Me"
+
+[channels]
+alerts = "123456789012345678"
+releases = "234567890123456789"
+
+[templates]
+directory = "templates"
+
+[defaults]
+template = "defaults"
+# channel = "alerts"
+# username = "Ping Me"
+# avatar = "letter"
+# avatar_url = "https://example.com/avatar.png"
+# thread_id = "345678901234567890"
+# thread_name = "New thread"
+# tts = false
+
+[emoji]
+asset_base_url = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/"
+
+[avatars.letter]
+type = "text"
+text = "N"
+foreground = "#FFFFFF"
+background = "#5865F2"
+size = 256
+font_size = 150.0
+
+[avatars.rocket]
+type = "emoji"
+emoji = "🚀"
+background = "#5865F2"
+size = 256
+scale = 0.72

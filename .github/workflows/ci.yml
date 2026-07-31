@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check all targets
+        run: cargo check --locked --all-targets
+
+      - name: Run Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --locked --all-targets
+
+      - name: Check installer
+        run: |
+          sh -n install.sh
+          test "$(sh install.sh --print-target Linux x86_64)" = "x86_64-unknown-linux-musl"
+          test "$(sh install.sh --print-target Linux aarch64)" = "aarch64-unknown-linux-musl"
+          test "$(sh install.sh --print-target Darwin arm64)" = "aarch64-apple-darwin"
+
+      - name: Validate OpenSpec
+        run: npx --yes @fission-ai/openspec@1.7.0 validate --all --strict --no-interactive
