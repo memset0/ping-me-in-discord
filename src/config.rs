@@ -46,7 +46,8 @@ size = 256
 font_size = 150.0
 "##;
 
-pub const STARTER_TEMPLATE: &str = r#"{{ message }}"#;
+pub const STARTER_TEMPLATE: &str = r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
+{{ message }}"#;
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -595,6 +596,19 @@ mod tests {
     }
 
     #[test]
+    fn starter_template_matches_the_approved_two_line_layout() {
+        assert_eq!(
+            STARTER_TEMPLATE,
+            r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
+{{ message }}"#
+        );
+        assert_eq!(
+            include_str!("../examples/templates/defaults.md"),
+            format!("{STARTER_TEMPLATE}\n")
+        );
+    }
+
+    #[test]
     fn unknown_or_misplaced_configuration_fields_are_rejected() {
         let error = toml::from_str::<Config>(
             r#"
@@ -642,11 +656,16 @@ webhook_name = "Notify Me"
     fn initialization_does_not_overwrite() {
         let root = TempDir::new().unwrap();
         initialize(root.path(), false).unwrap();
+        fs::write(
+            root.path().join("templates/defaults.md"),
+            "custom user template",
+        )
+        .unwrap();
         let error = initialize(root.path(), false).unwrap_err().to_string();
         assert!(error.contains("refusing to overwrite"));
         assert_eq!(
             fs::read_to_string(root.path().join("templates/defaults.md")).unwrap(),
-            STARTER_TEMPLATE
+            "custom user template"
         );
     }
 

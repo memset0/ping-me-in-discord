@@ -108,9 +108,10 @@ CLI 不会在正常输出、dry-run 或 API 错误中打印这些秘密。
 
 ## 模板
 
-不指定模板时使用 `[defaults].template`，其初始值为 `defaults`，对应 `templates/defaults.md`。最简单的内容是：
+不指定模板时使用 `[defaults].template`，其初始值为 `defaults`，对应 `templates/defaults.md`。新初始化的默认模板是：
 
 ```jinja
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
 {{ message }}
 ```
 
@@ -120,7 +121,16 @@ CLI 不会在正常输出、dry-run 或 API 错误中打印这些秘密。
 pingme 'build completed'
 ```
 
-会把 `build completed` 发送到目标 channel。模板正文保留 Discord Markdown 语法。
+会先显示运行 CLI 的 `user@hostname` 和本地时间，下一行紧接 `build completed`。模板正文保留 Discord Markdown 语法，因此 message 自带的粗体、列表、链接和其它 Discord Markdown 不会被转义。
+
+每次渲染都会自动提供一个保留的 `runtime` object：
+
+- `runtime.user` 和 `runtime.hostname`：当前系统身份；读取失败时分别为 `unknown-user` 和 `unknown-host`。
+- `runtime.timestamp.local`：运行机器本地时间，格式为 `M/D HH:mm:ss`。
+- `runtime.timestamp.unix`：同一时刻的 Unix 秒数。
+- `runtime.timestamp.iso8601`：同一时刻的 UTC ISO 8601 表示。
+
+`runtime` 不能由 `--data` 或 `--var` 覆盖；发生冲突时 CLI 会在联网前报错。hostname 可能包含内部基础设施名称，不希望发送时可直接从自己的模板中删除元信息行。installer 和不带 `--force` 的初始化不会覆盖已有 `templates/defaults.md`，所以升级用户需要自行选择是否采用新版模板。
 
 模板可在开头使用 YAML frontmatter：
 

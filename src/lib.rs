@@ -4,6 +4,7 @@ pub mod config;
 pub mod discord;
 pub mod options;
 pub mod paths;
+mod runtime;
 pub mod state;
 pub mod template;
 

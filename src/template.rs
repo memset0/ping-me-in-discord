@@ -10,7 +10,7 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 use url::Url;
 
-use crate::{avatar::AvatarSelection, config::validate_template_name};
+use crate::{avatar::AvatarSelection, config::validate_template_name, runtime::RuntimeMetadata};
 
 const PAYLOAD_FIELDS: &[&str] = &[
     "username",
@@ -42,6 +42,15 @@ pub fn build_context(
     data_path: Option<&Path>,
     variables: &[String],
 ) -> Result<Value> {
+    build_context_with_runtime(message, data_path, variables, RuntimeMetadata::capture())
+}
+
+fn build_context_with_runtime(
+    message: Option<String>,
+    data_path: Option<&Path>,
+    variables: &[String],
+    runtime: RuntimeMetadata,
+) -> Result<Value> {
     let mut context = if let Some(path) = data_path {
         let source = fs::read_to_string(path)
             .with_context(|| format!("could not read JSON data {}", path.display()))?;
@@ -54,6 +63,11 @@ pub fn build_context(
     } else {
         Map::new()
     };
+
+    ensure!(
+        !context.contains_key("runtime"),
+        "template data key `runtime` is reserved for automatic runtime metadata"
+    );
 
     if let Some(message) = message {
         context.insert("message".to_owned(), Value::String(message));
@@ -70,8 +84,17 @@ pub fn build_context(
                     .all(|character| character.is_ascii_alphanumeric() || character == '_'),
             "template variable name `{key}` may contain only ASCII letters, digits, and `_`"
         );
+        ensure!(
+            key != "runtime",
+            "template variable `runtime` is reserved for automatic runtime metadata"
+        );
         context.insert(key.to_owned(), Value::String(value.to_owned()));
     }
+
+    context.insert(
+        "runtime".to_owned(),
+        serde_json::to_value(runtime).context("could not serialize automatic runtime metadata")?,
+    );
 
     Ok(Value::Object(context))
 }
@@ -408,6 +431,16 @@ mod tests {
 
     use super::*;
 
+    fn fixed_runtime() -> RuntimeMetadata {
+        RuntimeMetadata::fixed(
+            "mem",
+            "vultr",
+            "7/31 12:00:11",
+            1_775_000_011,
+            "2026-07-31T12:00:11Z",
+        )
+    }
+
     #[test]
     fn context_explicit_variables_override_message_and_json() {
         let root = TempDir::new().unwrap();
@@ -422,6 +455,80 @@ mod tests {
 
         assert_eq!(context["message"], "from-var");
         assert_eq!(context["project"], "api");
+    }
+
+    #[test]
+    fn context_contains_the_complete_runtime_snapshot() {
+        let context = build_context_with_runtime(None, None, &[], fixed_runtime()).unwrap();
+
+        assert_eq!(
+            context["runtime"],
+            json!({
+                "user": "mem",
+                "hostname": "vultr",
+                "timestamp": {
+                    "local": "7/31 12:00:11",
+                    "unix": 1_775_000_011_i64,
+                    "iso8601": "2026-07-31T12:00:11Z"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_runtime_key_from_json_data() {
+        let root = TempDir::new().unwrap();
+        let data = root.path().join("data.json");
+        fs::write(&data, r#"{"runtime":{"hostname":"spoofed"}}"#).unwrap();
+
+        let error = build_context_with_runtime(None, Some(&data), &[], fixed_runtime())
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("data key `runtime` is reserved"));
+    }
+
+    #[test]
+    fn rejects_runtime_key_from_explicit_variables() {
+        let error = build_context_with_runtime(
+            None,
+            None,
+            &["runtime=spoofed".to_owned()],
+            fixed_runtime(),
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(error.contains("variable `runtime` is reserved"));
+    }
+
+    #[test]
+    fn starter_template_renders_exact_layout_and_preserves_markdown() {
+        let context = build_context_with_runtime(
+            Some("build **complete**".to_owned()),
+            None,
+            &[],
+            fixed_runtime(),
+        )
+        .unwrap();
+        let source = render_source(crate::config::STARTER_TEMPLATE, &context).unwrap();
+        let rendered = parse_rendered("defaults", &source).unwrap();
+
+        assert_eq!(
+            rendered.payload["content"],
+            "> **🏠 `mem@vultr`   📅 `7/31 12:00:11`**\nbuild **complete**"
+        );
+    }
+
+    #[test]
+    fn starter_metadata_counts_toward_the_content_limit() {
+        let context =
+            build_context_with_runtime(Some("x".repeat(2_000)), None, &[], fixed_runtime())
+                .unwrap();
+        let source = render_source(crate::config::STARTER_TEMPLATE, &context).unwrap();
+        let error = parse_rendered("defaults", &source).unwrap_err().to_string();
+
+        assert!(error.contains("content exceeds 2000"));
     }
 
     #[test]

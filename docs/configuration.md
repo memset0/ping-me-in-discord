@@ -114,6 +114,15 @@ pingme 'alert' --channel 123456789012345678
 
 模板文件以可选 YAML frontmatter 开始，其余部分是 Discord Markdown `content`：
 
+新初始化的 `templates/defaults.md` 使用以下精确布局；元信息 blockquote 在前，正文紧接下一行，没有额外空行：
+
+```jinja
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
+{{ message }}
+```
+
+installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
+
 ```markdown
 ---
 channel: releases
@@ -160,6 +169,18 @@ MiniJinja 使用严格 undefined 模式：
 {{ message }}
 {{ project }}
 ```
+
+每次渲染自动注入以下保留对象，三个 timestamp 字段都来自同一次时间采样：
+
+| 变量 | 内容 |
+| --- | --- |
+| `runtime.user` | 当前系统用户；不可用时为 `unknown-user` |
+| `runtime.hostname` | 当前 hostname；不可用时为 `unknown-host` |
+| `runtime.timestamp.local` | 运行机器本地时间，格式 `M/D HH:mm:ss` |
+| `runtime.timestamp.unix` | Unix 整数秒 |
+| `runtime.timestamp.iso8601` | UTC ISO 8601 时间 |
+
+顶层键 `runtime` 由 CLI 保留。`--data` 中包含该键或传入 `--var runtime=...` 时会在模板渲染和网络访问前报错。默认模板会把系统用户和 hostname 发送到 Discord；不希望暴露机器命名时，应编辑本机 `defaults.md` 删除该行或改用自己的标签。
 
 变量来源按优先级由低到高为：
 
