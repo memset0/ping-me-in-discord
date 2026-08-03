@@ -66,3 +66,4 @@
 
 - After completing a proposal, proceed directly to applying it without waiting for another confirmation, unless the user explicitly asks to stop after the proposal or the requirements are ambiguous enough to require clarification.
 - This repository uses `master` as its primary branch; apply branch-specific rules above to `master` and `origin/master` instead of `main` and `origin/main`.
+- Override the canonical setup-push rule above: after every successful OpenSpec installation, reinstallation, repair, or update commit, automatically push `master` to `origin/master` without waiting for another request.
