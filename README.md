@@ -29,6 +29,36 @@ DISCORD_NOTIFICATION_INSTALL_DIR="$HOME/bin" sh /tmp/notify-me-on-discord-instal
 
 如果 `~/.local/bin` 不在 `PATH` 中，需要把它加入 shell 的 `PATH`。installer 本身不会修改 shell 配置。
 
+## 安装 Codex skills
+
+二进制内嵌了 `$discord-notify` 和 `$discord-agent-notify` 两个 Codex skill，不需要克隆本仓库，也不会读取 Discord 配置或访问网络。
+
+安装到当前项目时，先进入项目根目录再运行：
+
+```console
+cd /path/to/your-project
+pingme skills install --scope project
+```
+
+文件会写入当前目录的 `.codex/skills/discord-notify` 和 `.codex/skills/discord-agent-notify`。
+
+安装到当前用户的全局 Codex 环境：
+
+```console
+pingme skills install --scope global
+```
+
+如果设置了非空的 `CODEX_HOME`，目标为 `${CODEX_HOME}/skills`；否则目标为 `~/.codex/skills`。两个命令都可以再次执行来刷新 CLI 自己维护的 skill 文件：内容相同的文件保持不变，旧版本或本地修改会恢复为当前二进制内嵌的版本，其他 skill 目录不会被删除或修改。
+
+安装完成后，请重新启动 Codex 或打开新的 Codex session，使新 skills 被加载。随后可以在聊天中使用：
+
+```text
+$discord-notify
+$discord-agent-notify
+```
+
+当前版本只安装 Codex skills，尚不生成 Claude Code skill 文件。
+
 ## 初始化
 
 便携模式会把 `config.toml` 和 `templates/defaults.md` 放在二进制所在目录：
@@ -264,7 +294,7 @@ pingme report-error --channel alerts
 
 它不读取模板或渲染头像，只发送 `⚠️ Agent notification failed ...`。指定 channel 不存在或投递失败时会尝试不同的 `[defaults].channel` 一次；若配置、凭据或网络整体不可用，则本地返回失败且不会递归。
 
-这些 skill 当前位于项目的 `.codex/skills/`，本次初版不包含 Claude Code 版本。使用旧 `defaults.md` 的本机必须先手动采用上面的 `runtime.codex_thread_id` 条件片段，并把六个状态 profile 合入现有 `config.toml`；升级不会覆盖用户模板或配置。
+这些 skill 可以通过前文的 `pingme skills install` 安装到项目或用户全局位置，本次初版不包含 Claude Code 版本。使用旧 `defaults.md` 的本机必须先手动采用上面的 `runtime.codex_thread_id` 条件片段，并把六个状态 profile 合入现有 `config.toml`；升级不会覆盖用户模板或配置。
 
 ## 开发与发布
 

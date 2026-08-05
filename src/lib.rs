@@ -5,6 +5,7 @@ pub mod discord;
 pub mod options;
 pub mod paths;
 mod runtime;
+pub mod skills;
 pub mod state;
 pub mod template;
 
@@ -20,8 +21,8 @@ use serde_json::{Value, json};
 use crate::{
     avatar::{AvatarRenderer, AvatarSelection, ResolvedAvatar},
     cli::{
-        AvatarCommand, ChannelsCommand, Cli, Command, ConfigCommand, SendOptions, TemplatesCommand,
-        WebhookCommand,
+        AvatarCommand, ChannelsCommand, Cli, Command, ConfigCommand, SendOptions, SkillsCommand,
+        TemplatesCommand, WebhookCommand,
     },
     config::LoadedConfig,
     discord::DiscordClient,
@@ -197,6 +198,13 @@ async fn execute_command(config_path: Option<PathBuf>, command: Command) -> Resu
             for name in template::list(&loaded.templates_directory)? {
                 println!("{name}");
             }
+            Ok(())
+        }
+        Command::Skills {
+            command: SkillsCommand::Install(arguments),
+        } => {
+            let summary = skills::install(arguments.scope)?;
+            skills::print_summary(&summary);
             Ok(())
         }
         Command::Channels {

@@ -42,6 +42,11 @@ pub enum Command {
         #[command(subcommand)]
         command: TemplatesCommand,
     },
+    /// Install the bundled agent skills.
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCommand,
+    },
     /// Inspect configured Discord channels.
     Channels {
         #[command(subcommand)]
@@ -185,6 +190,19 @@ pub enum ConfigCommand {
 pub enum TemplatesCommand {
     /// List available Markdown templates.
     List,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SkillsCommand {
+    /// Install or refresh the bundled Codex skills.
+    Install(SkillsInstallArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SkillsInstallArgs {
+    /// Select the current project's .codex directory or the user-global Codex home.
+    #[arg(long, value_enum, value_name = "SCOPE")]
+    pub scope: crate::skills::SkillScope,
 }
 
 #[derive(Debug, Subcommand)]
