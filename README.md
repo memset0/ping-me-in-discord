@@ -1,17 +1,17 @@
 # notify-me-on-discord
 
-一个用 Rust 编写的 Discord 通知 CLI。它把 Markdown 模板渲染成 Discord webhook 消息，并提供两个等价入口：
+A Rust CLI for sending Discord notifications. It renders Markdown templates into Discord webhook messages and provides two equivalent entry points:
 
 ```console
 pingme 'message content'
 notify-me-on-discord 'message content'
 ```
 
-默认情况下，这段文字会作为 `message` 变量传给二进制同目录下的 `templates/defaults.md`，然后发送到配置的 Discord channel。模板、channel、用户名和头像均可在调用时覆盖。
+By default, the text becomes the `message` variable for `templates/defaults.md` beside the binary and is sent to the configured Discord channel. The template, channel, username, and avatar can all be overridden for an individual invocation.
 
-## 安装
+## Installation
 
-Release 提供预编译二进制，最终用户不需要 Rust，也不需要 root。建议先检查安装脚本，再执行：
+Releases provide prebuilt binaries, so end users need neither Rust nor root access. Inspect the installation script before running it:
 
 ```console
 curl --proto '=https' --tlsv1.2 -fsSL \
@@ -21,66 +21,66 @@ less /tmp/notify-me-on-discord-install.sh
 sh /tmp/notify-me-on-discord-install.sh
 ```
 
-installer 默认安装到 `~/.local/bin`，同时安装 `notify-me-on-discord` 和 `pingme`。可通过 `DISCORD_NOTIFICATION_INSTALL_DIR` 指定其它用户目录：
+The installer places both `notify-me-on-discord` and `pingme` in `~/.local/bin` by default. Set `DISCORD_NOTIFICATION_INSTALL_DIR` to choose another user-owned directory:
 
 ```console
 DISCORD_NOTIFICATION_INSTALL_DIR="$HOME/bin" sh /tmp/notify-me-on-discord-install.sh
 ```
 
-如果 `~/.local/bin` 不在 `PATH` 中，需要把它加入 shell 的 `PATH`。installer 本身不会修改 shell 配置。
+Add `~/.local/bin` to your shell's `PATH` if necessary. The installer does not modify shell configuration.
 
-## 安装 Codex skills
+## Installing the Codex skills
 
-二进制内嵌了 `$discord-notify` 和 `$discord-agent-notify` 两个 Codex skill，不需要克隆本仓库，也不会读取 Discord 配置或访问网络。
+The binary embeds the `$discord-notify` and `$discord-agent-notify` Codex skills. Installing them does not require cloning this repository, reading Discord configuration, or accessing the network.
 
-安装到当前项目时，先进入项目根目录再运行：
+To install them in the current project, first enter the project root:
 
 ```console
 cd /path/to/your-project
 pingme skills install --scope project
 ```
 
-文件会写入当前目录的 `.codex/skills/discord-notify` 和 `.codex/skills/discord-agent-notify`。
+This writes `.codex/skills/discord-notify` and `.codex/skills/discord-agent-notify` below the current directory.
 
-安装到当前用户的全局 Codex 环境：
+To install them globally for the current user:
 
 ```console
 pingme skills install --scope global
 ```
 
-如果设置了非空的 `CODEX_HOME`，目标为 `${CODEX_HOME}/skills`；否则目标为 `~/.codex/skills`。两个命令都可以再次执行来刷新 CLI 自己维护的 skill 文件：内容相同的文件保持不变，旧版本或本地修改会恢复为当前二进制内嵌的版本，其他 skill 目录不会被删除或修改。
+When `CODEX_HOME` is non-empty, the global destination is `${CODEX_HOME}/skills`; otherwise it is `~/.codex/skills`. Either command can be run again to refresh the CLI-owned skill files. Identical files remain unchanged, outdated or locally modified owned files are restored from the current binary, and unrelated skill directories are left untouched.
 
-安装完成后，请重新启动 Codex 或打开新的 Codex session，使新 skills 被加载。随后可以在聊天中使用：
+Restart or reopen Codex, or begin a new Codex session, after installation so the new skills are discovered. You can then invoke them in chat:
 
 ```text
 $discord-notify
 $discord-agent-notify
 ```
 
-当前版本只安装 Codex skills，尚不生成 Claude Code skill 文件。
+The current release installs Codex skills only; it does not yet generate Claude Code skill files.
 
-## 初始化
+## Initialization
 
-便携模式会把 `config.toml` 和 `templates/defaults.md` 放在二进制所在目录：
+Portable mode places `config.toml` and `templates/defaults.md` beside the binary:
 
 ```console
 notify-me-on-discord init --portable
 ```
 
-普通用户模式遵循平台目录约定；Linux 下配置会写到 `~/.config/discord-notification`，运行状态和 emoji cache 位于 `~/.local/share/discord-notification`：
+Standard user mode follows platform directory conventions. On Linux, configuration is written below `~/.config/discord-notification`, while runtime state and the emoji cache live below `~/.local/share/discord-notification`:
 
 ```console
 notify-me-on-discord init
 ```
 
-配置查找优先级如下：
+Configuration lookup uses this precedence:
 
 1. `--config /path/to/config.toml`
 2. `DISCORD_NOTIFICATION_CONFIG`
-3. 二进制同目录下的 `config.toml`
-4. 用户配置目录
+3. `config.toml` beside the binary
+4. The platform user configuration directory
 
-可用以下命令确认实际路径和离线检查配置：
+Inspect the selected path and validate configuration offline with:
 
 ```console
 notify-me-on-discord config path
@@ -89,13 +89,13 @@ pingme channels list --json
 pingme avatar list --json
 ```
 
-后两条命令只输出可安全选择的 channel/avatar 元数据，不会打印 Bot token、webhook URL 或头像源路径，适合 agent 使用。
+The final two commands expose only channel and avatar metadata that is safe for agents to select. They do not print Bot tokens, webhook URLs, or avatar source paths.
 
-## Discord 凭据
+## Discord credentials
 
-### 直接使用 webhook URL
+### Direct webhook URL
 
-这是最简单、权限最小的方式。Discord incoming webhook URL 自身已包含 webhook token，不需要 Bot token：
+This is the simplest and least-privileged setup. A Discord incoming webhook URL already contains its webhook token, so no Bot token is required:
 
 ```toml
 [discord]
@@ -103,9 +103,9 @@ webhook_url = "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"
 webhook_name = "Notify Me"
 ```
 
-### 使用 Bot token 自动创建 webhook
+### Bot token with automatic webhook provisioning
 
-也可以配置 Bot token，并用 `[channels]` 给多个 channel ID 设置 alias。Bot 必须在每个目标 channel 拥有 `MANAGE_WEBHOOKS` 权限；首次发送时 CLI 会复用同名 incoming webhook，找不到时创建一个，并按 channel 缓存返回的 webhook URL。
+You can instead configure a Bot token and map readable aliases to multiple channel IDs under `[channels]`. The Bot must have `MANAGE_WEBHOOKS` in each target channel. On first delivery, the CLI reuses a matching incoming webhook or creates one and caches its URL by channel.
 
 ```toml
 [discord]
@@ -120,7 +120,7 @@ releases = "234567890123456789"
 channel = "alerts"
 ```
 
-随后既可以使用默认 channel，也可以覆盖为 alias 或数字 ID：
+Use the default channel, an alias, or a numeric channel ID:
 
 ```console
 pingme 'default destination'
@@ -128,46 +128,46 @@ pingme 'release completed' --channel releases
 pingme 'one-off destination' --channel 345678901234567890
 ```
 
-Discord incoming webhook 在执行时不能改投到任意 channel。因此配置了 `--channel`、frontmatter `channel` 或 `[defaults].channel` 时，CLI 使用 Bot 管理该 channel 对应的 webhook；单一 `discord.webhook_url` 只适用于完全不指定 channel 的固定目标用法。
+An incoming webhook cannot redirect a message to an arbitrary channel at execution time. When `--channel`, frontmatter `channel`, or `[defaults].channel` selects a destination, the CLI uses the Bot to manage that channel's webhook. A single `discord.webhook_url` is suitable only for a fixed destination when every configuration layer omits a channel.
 
-更推荐通过环境变量注入秘密，它们会覆盖文件中的值：
+Environment variables are recommended for secrets and override file values:
 
 ```console
 export DISCORD_NOTIFICATION_WEBHOOK_URL='https://discord.com/api/webhooks/...'
-# 或
+# or
 export DISCORD_NOTIFICATION_BOT_TOKEN='...'
 ```
 
-CLI 不会在正常输出、dry-run 或 API 错误中打印这些秘密。
+The CLI redacts secrets from normal output, dry-run output, and API errors.
 
-## 模板
+## Templates
 
-不指定模板时使用 `[defaults].template`，其初始值为 `defaults`，对应 `templates/defaults.md`。新初始化的默认模板是：
+When no template is specified, `[defaults].template` initially selects `defaults`, which resolves to `templates/defaults.md`. A newly initialized default template contains:
 
 ```jinja
 > **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
 {{ message }}
 ```
 
-因此普通 shell 调用仍显示原来的 hostname 和时间；从 Codex 调用且存在 `CODEX_THREAD_ID` 时，时间后还会追加当前 conversation ID：
+Ordinary shell invocations show the hostname and time. When Codex supplies `CODEX_THREAD_ID`, the current conversation ID is appended after the timestamp:
 
 ```console
 pingme 'build completed'
 ```
 
-会先显示运行 CLI 的 `user@hostname` 和本地时间，下一行紧接 `build completed`。模板正文保留 Discord Markdown 语法，因此 message 自带的粗体、列表、链接和其它 Discord Markdown 不会被转义。
+The first line contains the CLI host's `user@hostname` and local time, and `build completed` follows immediately on the next line. The template body preserves Discord Markdown, so bold text, lists, links, and other Discord Markdown in the message are not escaped.
 
-每次渲染都会自动提供一个保留的 `runtime` object：
+Every render receives a reserved `runtime` object:
 
-- `runtime.user` 和 `runtime.hostname`：当前系统身份；读取失败时分别为 `unknown-user` 和 `unknown-host`。
-- `runtime.codex_thread_id`：可选的当前 Codex conversation ID，来自 `CODEX_THREAD_ID`；普通 shell 中通常为 `null`。
-- `runtime.timestamp.local`：运行机器本地时间，格式为 `M/D HH:mm:ss`。
-- `runtime.timestamp.unix`：同一时刻的 Unix 秒数。
-- `runtime.timestamp.iso8601`：同一时刻的 UTC ISO 8601 表示。
+- `runtime.user` and `runtime.hostname`: the current system identity, falling back to `unknown-user` and `unknown-host` when unavailable.
+- `runtime.codex_thread_id`: the optional current Codex conversation ID from `CODEX_THREAD_ID`; it is normally `null` in an ordinary shell.
+- `runtime.timestamp.local`: local machine time in `M/D HH:mm:ss` format.
+- `runtime.timestamp.unix`: Unix seconds for the same captured instant.
+- `runtime.timestamp.iso8601`: a UTC ISO 8601 representation of the same instant.
 
-`runtime` 不能由 `--data` 或 `--var` 覆盖；发生冲突时 CLI 会在联网前报错。hostname 和 thread ID 可能属于内部元信息，不希望发送时可从自己的模板中删除对应字段。installer 和不带 `--force` 的初始化不会覆盖已有 `templates/defaults.md`，所以升级用户需要自行把上面的条件片段合入本机模板。
+Callers cannot replace `runtime` through `--data` or `--var`; collisions fail before any network request. Hostnames and thread IDs may be internal metadata, so remove those fields from your own template when they should not be sent. The installer and non-forced initialization preserve an existing `templates/defaults.md`, which means upgrading users must merge the conditional thread fragment manually if they want it.
 
-模板可在开头使用 YAML frontmatter：
+Templates can begin with YAML frontmatter:
 
 ```markdown
 ---
@@ -181,7 +181,7 @@ embeds:
 Triggered by **{{ actor }}**.
 ```
 
-发送命名模板：
+Send a named template with variables:
 
 ```console
 notify-me-on-discord send \
@@ -192,28 +192,28 @@ notify-me-on-discord send \
   --var actor=CI
 ```
 
-也可以从 JSON object 读取变量；重复的 `--var` 拥有最高优先级：
+Variables can also come from a JSON object. Repeated `--var` arguments have the highest precedence:
 
 ```console
 notify-me-on-discord send --template deployment --data event.json --var actor=manual
 ```
 
-查看模板和最终 payload：
+Inspect templates and the final payload without delivery:
 
 ```console
 notify-me-on-discord templates list
 pingme 'preview only' --dry-run
 ```
 
-dry-run 不会创建 webhook、更新头像或发起 Discord 请求。未定义的模板变量会直接报错。未声明 `allowed_mentions` 时，CLI 默认禁用 mention parsing，避免模板内容意外触发 `@everyone`。
+Dry-run mode does not provision webhooks, update avatars, or contact Discord. Undefined template variables fail immediately. When `allowed_mentions` is absent, the CLI disables mention parsing so template content cannot unexpectedly trigger `@everyone`.
 
-发送选项统一按以下顺序解析：
+Send options use one precedence order:
 
 ```text
-CLI argument > template frontmatter > config.toml [defaults] > 未设置
+CLI argument > template frontmatter > config.toml [defaults] > unset
 ```
 
-常用覆盖参数：
+Common per-message overrides include:
 
 ```console
 pingme 'deploy completed' \
@@ -223,20 +223,20 @@ pingme 'deploy completed' \
   --no-tts
 ```
 
-还支持 `--thread-id`、`--thread-name`、`--tts`、`--avatar-url` 以及下面的一次性头像参数。复杂的 embeds、components、poll 和 allowed mentions 继续由模板 frontmatter 管理。
+The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, and the one-off avatar arguments described below. Complex embeds, components, polls, and allowed mentions remain in template frontmatter.
 
-frontmatter、全部头像类型和配置字段详见 [配置参考](docs/configuration.md)。
+See the [configuration reference](docs/configuration.md) for every frontmatter field, avatar type, and configuration option.
 
-## 头像
+## Avatars
 
-`config.toml` 使用 `[avatars.<name>]` 定义可复用 profile；CLI `--avatar <name>`、模板 `avatar` 和 `[defaults].avatar` 都可以选择它：
+Define reusable profiles under `[avatars.<name>]` in `config.toml`. CLI `--avatar <name>`, template frontmatter `avatar`, and `[defaults].avatar` can all select a profile:
 
-- `image`：HTTPS 图片 URL 直接成为当前消息的 `avatar_url`；本地图片会居中裁剪成正方形 PNG。
-- `emoji`：下载并缓存透明 Twemoji 图片，再渲染到指定背景色；可选 `foreground` 会在保留透明轮廓和抗锯齿的前提下统一重着色，`scale` 省略时为 `0.72` 且可在每个 profile 中独立设置。
-- `text`：把汉字、英文字母或短文本居中渲染，前景色和背景色均可配置。
-- `font-icon`：从用户提供的 TTF/OTF/TTC 字体中渲染一个 glyph，例如 Font Awesome icon。
+- `image`: an HTTPS image URL becomes the current message's `avatar_url`; a local image is center-cropped into a square PNG.
+- `emoji`: transparent Twemoji artwork is downloaded, cached, and rendered over the configured background. Optional `foreground` recolors visible artwork while preserving its alpha outline and anti-aliasing. Omitted `scale` defaults to `0.72` and remains configurable per profile.
+- `text`: a Chinese character, Latin letter, or short Unicode string is centered with configurable foreground and background colors.
+- `font-icon`: a glyph from a user-supplied TTF, OTF, or TTC font is rendered through the same pipeline, including Font Awesome icons.
 
-profile 可用不影响渲染的 `description` 描述适用场景，方便人或 agent 选择：
+An optional `description` helps people and agents select a profile without affecting rendering:
 
 ```toml
 [avatars.release]
@@ -246,57 +246,57 @@ emoji = "🚀"
 background = "#5865F2"
 ```
 
-新初始化的配置还提供 `started`、`progress`、`success`、`needs-input`、`warning` 和 `error` 六个 agent 状态 profile。严格通知 skill 只传递 `--avatar <status>`，emoji、颜色、尺寸和 scale 全部来自 `config.toml`；其中 `error` 默认采用已确认的 `scale = 0.576`。升级不会覆盖既有配置，现有用户需从 [完整示例](examples/config.toml) 手动合入这些通用 profile block。
+New configurations also include the `started`, `progress`, `success`, `needs-input`, `warning`, and `error` agent status profiles. The strict notification skill passes only `--avatar <status>`; emoji, color, size, and scale remain entirely in `config.toml`. The `error` profile uses the accepted `scale = 0.576`. Upgrades never overwrite existing configuration, so existing users must manually copy these common profile blocks from the [complete example](examples/config.toml).
 
-查看安全摘要：
+List the safe profile summary:
 
 ```console
 pingme avatar list
 pingme avatar list --json
 ```
 
-预览本地或生成头像：
+Preview a local or generated avatar:
 
 ```console
 notify-me-on-discord avatar preview rocket --output rocket.png
 ```
 
-也可以在单次调用中临时定义头像：
+You can also define an avatar for one invocation:
 
 ```console
 pingme 'rocket launched' --avatar-emoji '🚀' --avatar-background '#5865F2'
 pingme 'verification failed' --avatar-emoji '❌' --avatar-foreground '#FFFFFF' --avatar-background '#DD2E44'
-pingme 'build completed' --avatar-text '构' --avatar-foreground '#FFFFFF' --avatar-background '#57F287'
+pingme 'build completed' --avatar-text 'N' --avatar-foreground '#FFFFFF' --avatar-background '#57F287'
 pingme 'custom image' --avatar-file ./avatar.png --avatar-size 256
 pingme 'remote image' --avatar-url https://example.com/avatar.png
 ```
 
-一次只能使用 `--avatar`、`--avatar-url`、`--avatar-file`、`--avatar-emoji`、`--avatar-text`、`--avatar-icon` 中的一项。字体图标还需要 `--avatar-font`；可选样式参数包括 `--avatar-foreground`、`--avatar-background`、`--avatar-size`、`--avatar-font-size` 和 `--avatar-scale`。
+Only one of `--avatar`, `--avatar-url`, `--avatar-file`, `--avatar-emoji`, `--avatar-text`, and `--avatar-icon` can be used at a time. Font icons additionally require `--avatar-font`. Style arguments include `--avatar-foreground`, `--avatar-background`, `--avatar-size`, `--avatar-font-size`, and `--avatar-scale`.
 
-Discord 的 `avatar_url` 必须是 Discord 能访问的 HTTPS URL，因此远程图片会直接作为当前消息的覆盖头像。本地图片、emoji、文字和 font icon 会渲染为 PNG，并由 CLI 按“目标 channel + 图片摘要”创建和复用独立 incoming webhook 身份；不同生成头像不会再反复修改同一个基础 webhook。此路径要求解析出目标 channel，并配置具有该 channel `MANAGE_WEBHOOKS` 权限的 Bot token，缺少条件时命令会明确失败，不会静默退回默认头像。
+Discord requires `avatar_url` to be an HTTPS URL it can access, so remote images are sent as per-message avatar overrides. Local images, emoji, text, and font icons are rendered as PNG and assigned to dedicated incoming webhook identities keyed by target channel and image digest. Different generated avatars therefore do not repeatedly mutate one base webhook. This path requires a resolved channel and a Bot token with `MANAGE_WEBHOOKS` in that channel. Missing prerequisites cause an explicit failure instead of a silent fallback to the default avatar.
 
-若三层配置都没有指定头像，CLI 始终通过基础 webhook 使用 Discord 默认头像。升级后第一次遇到旧版曾修改过的基础 webhook 时，CLI 会先将其头像重置为 `null` 并清除旧状态记录。
+When every configuration layer omits an avatar, the CLI always uses the base webhook with Discord's default avatar. The first time an upgraded CLI encounters legacy state indicating that an older version modified a base webhook, it resets that avatar to `null` and clears the legacy state entry.
 
-## Codex agent 通知 skills
+## Codex agent notification skills
 
-仓库提供两个初版 Codex skill：
+The project provides two initial Codex skills:
 
-- `$discord-notify`：自由组织 Markdown；先用 JSON 命令选择配置好的 channel 和可选 avatar profile。
-- `$discord-agent-notify`：严格使用 `started`、`progress`、`success`、`needs-input`、`warning` 或 `error` 状态，并直接选择同名配置 profile；skill 不保存 emoji、颜色或 scale。
+- `$discord-notify`: freely formats Discord Markdown after using JSON commands to select a configured channel and optional avatar profile.
+- `$discord-agent-notify`: strictly selects `started`, `progress`, `success`, `needs-input`, `warning`, or `error` and passes the same-named configured profile. The skill does not contain emoji, color, or scale settings.
 
-两个 skill 都会读取 `CODEX_THREAD_ID`，先 dry-run 并确认本机模板确实渲染了该 ID，再执行真实发送。它们的所有 CLI 调用均通过各自的 `scripts/run-pingme.sh`：原调用失败后只执行一次短错误上报，并保留原失败 exit status。
+Both skills read `CODEX_THREAD_ID`, dry-run the message, and verify that the local template rendered the exact ID before performing the live send. Every CLI call runs through the skill's `scripts/run-pingme.sh`; after a wrapped command fails, the runner makes exactly one short error-report attempt and preserves the original exit status.
 
-错误上报也可单独调用：
+Error reporting can also be invoked directly:
 
 ```console
 pingme report-error --channel alerts
 ```
 
-它不读取模板或渲染头像，只发送 `⚠️ Agent notification failed ...`。指定 channel 不存在或投递失败时会尝试不同的 `[defaults].channel` 一次；若配置、凭据或网络整体不可用，则本地返回失败且不会递归。
+This command bypasses templates and avatars and sends only `⚠️ Agent notification failed ...`. If the selected channel is unknown or delivery fails, it attempts a different `[defaults].channel` once. If configuration, credentials, or the network are unavailable, it fails locally without recursion.
 
-这些 skill 可以通过前文的 `pingme skills install` 安装到项目或用户全局位置，本次初版不包含 Claude Code 版本。使用旧 `defaults.md` 的本机必须先手动采用上面的 `runtime.codex_thread_id` 条件片段，并把六个状态 profile 合入现有 `config.toml`；升级不会覆盖用户模板或配置。
+Install these skills at project or global scope with the earlier `pingme skills install` commands. This initial release does not include a Claude Code version. Existing installations with an older `defaults.md` must manually adopt the `runtime.codex_thread_id` conditional fragment and merge the six status profiles into `config.toml`; upgrades preserve user templates and configuration.
 
-## 开发与发布
+## Development and releases
 
 ```console
 cargo fmt --all -- --check
@@ -305,6 +305,6 @@ cargo test --locked --all-targets
 cargo build --release
 ```
 
-`vX.Y.Z` tag 会触发 release workflow。Linux x86_64/ARM64 musl archive 是主要产物，另有 GNU/Linux、macOS 和 Windows 构建；每个 archive 都附带 SHA-256 文件。更多信息见 [发布说明](docs/releases.md)。
+A `vX.Y.Z` tag triggers the release workflow. Linux x86_64 and ARM64 musl archives are the primary artifacts, with additional GNU/Linux, macOS, and Windows builds when their CI targets succeed. Every archive has a SHA-256 checksum. See the [release documentation](docs/releases.md) for details.
 
-Emoji artwork attribution 见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for emoji artwork attribution.

@@ -1,5 +1,9 @@
 # Project Instructions
 
+## Documentation
+
+- Write `README.md` and all future modifications to it in English.
+
 ## OpenSpec and Git Workflow
 
 - Use the repository's generated OpenSpec workflows.
