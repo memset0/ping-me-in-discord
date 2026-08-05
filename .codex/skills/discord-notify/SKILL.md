@@ -1,0 +1,50 @@
+---
+name: discord-notify
+description: Send user-requested or project-required Discord notifications through the local pingme CLI with free-form content, configured channel aliases, optional configured avatar profiles, and the current Codex thread ID. Use when Codex must notify, ping, or update the user on Discord and should discover available routing or identity choices safely. Use discord-agent-notify instead when a strict lifecycle status format is required.
+---
+
+# Discord Notify
+
+Send one intentional Discord notification without reading the secret-bearing TOML file.
+
+## Workflow
+
+1. Resolve `scripts/run-pingme.sh` relative to this `SKILL.md` and invoke it by absolute path for every `pingme` operation. Never invoke `pingme` directly.
+2. Confirm `pingme` is installed with `command -v pingme`. Local, emoji, text, and font-icon avatars require a routed channel and a Bot with `MANAGE_WEBHOOKS`; never remove a requested avatar to work around a provisioning failure.
+3. Read the current Codex conversation ID with `printenv CODEX_THREAD_ID`. Treat an empty result as a failure: use the runner's `--report-only` mode, then stop. Never substitute Discord's `--thread-id`; that option targets a Discord thread.
+4. Run the following discovery commands through the runner before choosing values:
+
+   ```bash
+   /absolute/path/to/run-pingme.sh -- channels list --json
+   /absolute/path/to/run-pingme.sh -- avatar list --json
+   ```
+
+5. Select the destination:
+
+   - Honor an explicit user channel. Accept an exact listed alias or an explicitly supplied numeric Discord channel ID.
+   - If an explicit nonnumeric channel is not listed, report the failure once and stop.
+   - If the user did not choose a channel, omit `--channel`; the CLI will use `[defaults].channel`.
+
+6. Select the avatar:
+
+   - Honor an explicit profile only when `avatar list --json` contains its exact name.
+   - Otherwise choose a profile only when its name or description clearly matches the message purpose.
+   - On ambiguity or no suitable profile, omit every avatar argument so Discord uses its default avatar.
+
+7. Compose concise free-form Discord Markdown. Exclude credentials, webhook URLs, raw logs, and other secrets.
+8. Dry-run the exact send through the runner. When a channel was explicitly selected, pass it to the runner as `--error-channel <channel>` as well as to `pingme`:
+
+   ```bash
+   /absolute/path/to/run-pingme.sh --error-channel test -- \
+     --channel test --avatar release --dry-run "message content"
+   ```
+
+9. Inspect the rendered JSON and require its `content` to contain the exact `CODEX_THREAD_ID`. If it does not, use `--report-only` for the selected channel and stop; the user's existing template needs the Codex thread field.
+10. Repeat the same invocation without `--dry-run` exactly once. Report the returned Discord message ID to the user.
+
+## Failure rules
+
+- The runner automatically calls `pingme report-error` once after any wrapped CLI failure and preserves the original exit status.
+- Use `--report-only` for preflight failures such as a missing thread ID or a rendered template that omits it.
+- Do not retry a failed normal message automatically. Do not wrap or directly call `report-error` yourself.
+- If the error report also fails, surface the local diagnostic; the runner never recurses.

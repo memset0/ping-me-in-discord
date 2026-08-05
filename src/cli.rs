@@ -42,11 +42,18 @@ pub enum Command {
         #[command(subcommand)]
         command: TemplatesCommand,
     },
+    /// Inspect configured Discord channels.
+    Channels {
+        #[command(subcommand)]
+        command: ChannelsCommand,
+    },
     /// Render configured avatars.
     Avatar {
         #[command(subcommand)]
         command: AvatarCommand,
     },
+    /// Send a short, template-independent agent failure report.
+    ReportError(ReportErrorArgs),
     /// Manage the Discord incoming webhook.
     Webhook {
         #[command(subcommand)]
@@ -106,7 +113,7 @@ pub struct SendOptions {
     #[arg(long, value_name = "COLOR")]
     pub avatar_background: Option<String>,
 
-    /// Set the foreground color for a one-off text or icon avatar.
+    /// Recolor a one-off emoji, text, or icon avatar.
     #[arg(long, value_name = "COLOR")]
     pub avatar_foreground: Option<String>,
 
@@ -181,7 +188,23 @@ pub enum TemplatesCommand {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum ChannelsCommand {
+    /// List configured channel aliases and the effective default.
+    List {
+        /// Emit stable JSON for agent consumption.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 pub enum AvatarCommand {
+    /// List configured avatar profiles without exposing their sources.
+    List {
+        /// Emit stable JSON for agent consumption.
+        #[arg(long)]
+        json: bool,
+    },
     /// Render an avatar to a local PNG.
     Preview {
         /// Avatar profile name from config.toml.
@@ -190,6 +213,13 @@ pub enum AvatarCommand {
         #[arg(long, short, default_value = "avatar.png")]
         output: PathBuf,
     },
+}
+
+#[derive(Debug, Args)]
+pub struct ReportErrorArgs {
+    /// Prefer this channel ID or alias, falling back to the configured default.
+    #[arg(long, value_name = "CHANNEL")]
+    pub channel: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

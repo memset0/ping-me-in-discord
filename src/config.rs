@@ -17,7 +17,8 @@ pub const STARTER_CONFIG: &str = r##"# notify-me-on-discord configuration
 # Prefer a direct incoming webhook URL for the smallest possible credential:
 # webhook_url = "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"
 #
-# Or let a Bot with MANAGE_WEBHOOKS create/reuse webhooks by channel:
+# Or let a Bot with MANAGE_WEBHOOKS create/reuse webhooks by channel.
+# A Bot token is required for local, emoji, text, and font-icon avatars:
 # bot_token = "YOUR_BOT_TOKEN"
 webhook_name = "Notify Me"
 
@@ -38,15 +39,65 @@ template = "defaults"
 asset_base_url = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/"
 
 [avatars.letter]
+description = "General notification avatar"
 type = "text"
 text = "N"
 foreground = "#FFFFFF"
 background = "#5865F2"
 size = 256
 font_size = 150.0
+
+[avatars.started]
+description = "Agent work started"
+type = "emoji"
+emoji = "🚀"
+background = "#FFFFFF"
+size = 256
+scale = 0.72
+
+[avatars.progress]
+description = "Agent work in progress"
+type = "emoji"
+emoji = "🔄"
+background = "#3B88C3"
+size = 256
+scale = 0.72
+
+[avatars.success]
+description = "Agent work completed successfully"
+type = "emoji"
+emoji = "✅"
+background = "#77B255"
+size = 256
+scale = 0.72
+
+[avatars.needs-input]
+description = "Agent needs user input"
+type = "emoji"
+emoji = "❓"
+background = "#F1C40F"
+size = 256
+scale = 0.72
+
+[avatars.warning]
+description = "Agent warning"
+type = "emoji"
+emoji = "⚠️"
+background = "#E67E22"
+size = 256
+scale = 0.72
+
+[avatars.error]
+description = "Agent work or verification failed"
+type = "emoji"
+emoji = "❌"
+foreground = "#FFFFFF"
+background = "#DD2E44"
+size = 256
+scale = 0.576
 "##;
 
-pub const STARTER_TEMPLATE: &str = r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
+pub const STARTER_TEMPLATE: &str = r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
 {{ message }}"#;
 
 #[derive(Clone, Deserialize)]
@@ -63,7 +114,7 @@ pub struct Config {
     #[serde(default)]
     pub emoji: EmojiConfig,
     #[serde(default)]
-    pub avatars: BTreeMap<String, AvatarConfig>,
+    pub avatars: BTreeMap<String, AvatarProfile>,
 }
 
 #[derive(Clone, Default, Deserialize)]
@@ -145,6 +196,8 @@ pub enum AvatarConfig {
     Emoji {
         emoji: String,
         background: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        foreground: Option<String>,
         #[serde(default = "default_avatar_size")]
         size: u32,
         #[serde(default = "default_emoji_scale")]
@@ -170,6 +223,14 @@ pub enum AvatarConfig {
         #[serde(default = "default_font_size")]
         font_size: f32,
     },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AvatarProfile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(flatten)]
+    pub avatar: AvatarConfig,
 }
 
 #[derive(Clone)]
@@ -266,12 +327,12 @@ impl Config {
         }
 
         let config_directory = config_path.parent().unwrap_or_else(|| Path::new("."));
-        for (name, avatar) in &self.avatars {
+        for (name, profile) in &self.avatars {
             ensure!(
                 !name.trim().is_empty(),
                 "avatar profile names cannot be empty"
             );
-            avatar
+            profile
                 .validate(config_directory)
                 .with_context(|| format!("invalid avatar profile `{name}`"))?;
         }
@@ -302,6 +363,15 @@ impl Config {
 }
 
 impl AvatarConfig {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Image { .. } => "image",
+            Self::Emoji { .. } => "emoji",
+            Self::Text { .. } => "text",
+            Self::FontIcon { .. } => "font-icon",
+        }
+    }
+
     pub fn validate(&self, config_directory: &Path) -> Result<()> {
         match self {
             Self::Image { source, size } => {
@@ -320,11 +390,15 @@ impl AvatarConfig {
             Self::Emoji {
                 emoji,
                 background,
+                foreground,
                 size,
                 scale,
             } => {
                 ensure!(!emoji.trim().is_empty(), "emoji cannot be empty");
                 validate_color(background)?;
+                if let Some(foreground) = foreground {
+                    validate_color(foreground)?;
+                }
                 validate_size(*size)?;
                 ensure!(
                     (0.1..=1.0).contains(scale),
@@ -373,6 +447,31 @@ impl AvatarConfig {
             }
         }
         Ok(())
+    }
+}
+
+impl AvatarProfile {
+    pub fn validate(&self, config_directory: &Path) -> Result<()> {
+        if let Some(description) = &self.description {
+            ensure!(
+                !description.trim().is_empty(),
+                "description cannot be empty"
+            );
+            ensure!(
+                description.chars().count() <= 200,
+                "description cannot exceed 200 characters"
+            );
+        }
+        self.avatar.validate(config_directory)
+    }
+}
+
+impl From<AvatarConfig> for AvatarProfile {
+    fn from(avatar: AvatarConfig) -> Self {
+        Self {
+            description: None,
+            avatar,
+        }
     }
 }
 
@@ -593,13 +692,107 @@ mod tests {
         fs::write(root.path().join("templates/defaults.md"), STARTER_TEMPLATE).unwrap();
         let config: Config = toml::from_str(STARTER_CONFIG).unwrap();
         config.validate(&root.path().join("config.toml")).unwrap();
+        let profile = config.avatars.get("letter").unwrap();
+        assert_eq!(
+            profile.description.as_deref(),
+            Some("General notification avatar")
+        );
+        assert_eq!(profile.avatar.kind(), "text");
+    }
+
+    #[test]
+    fn starter_configuration_contains_strict_status_profiles() {
+        let config: Config = toml::from_str(STARTER_CONFIG).unwrap();
+        let expected = [
+            ("started", "🚀", "#FFFFFF", None, 0.72),
+            ("progress", "🔄", "#3B88C3", None, 0.72),
+            ("success", "✅", "#77B255", None, 0.72),
+            ("needs-input", "❓", "#F1C40F", None, 0.72),
+            ("warning", "⚠️", "#E67E22", None, 0.72),
+            ("error", "❌", "#DD2E44", Some("#FFFFFF"), 0.576),
+        ];
+
+        for (name, expected_emoji, expected_background, expected_foreground, expected_scale) in
+            expected
+        {
+            let AvatarConfig::Emoji {
+                emoji,
+                background,
+                foreground,
+                size,
+                scale,
+            } = &config.avatars[name].avatar
+            else {
+                panic!("strict status profile `{name}` must be an emoji");
+            };
+            assert_eq!(emoji, expected_emoji);
+            assert_eq!(background, expected_background);
+            assert_eq!(foreground.as_deref(), expected_foreground);
+            assert_eq!(*size, 256);
+            assert_eq!(*scale, expected_scale);
+        }
+    }
+
+    #[test]
+    fn avatar_descriptions_are_optional_but_validated() {
+        let root = TempDir::new().unwrap();
+        let legacy_source =
+            STARTER_CONFIG.replace("description = \"General notification avatar\"\n", "");
+        let legacy: Config = toml::from_str(&legacy_source).unwrap();
+        legacy.validate(&root.path().join("config.toml")).unwrap();
+        assert!(legacy.avatars["letter"].description.is_none());
+
+        let mut invalid: Config = toml::from_str(STARTER_CONFIG).unwrap();
+        invalid.avatars.get_mut("letter").unwrap().description = Some(" \n ".to_owned());
+        let error = invalid
+            .validate(&root.path().join("config.toml"))
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("description cannot be empty"));
+
+        invalid.avatars.get_mut("letter").unwrap().description = Some("x".repeat(201));
+        let error = invalid
+            .validate(&root.path().join("config.toml"))
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("description cannot exceed 200 characters"));
+    }
+
+    #[test]
+    fn emoji_foregrounds_are_optional_but_validated() {
+        let root = TempDir::new().unwrap();
+        let mut config: Config = toml::from_str(STARTER_CONFIG).unwrap();
+        config.validate(&root.path().join("config.toml")).unwrap();
+        assert!(matches!(
+            config.avatars["started"].avatar,
+            AvatarConfig::Emoji {
+                foreground: None,
+                ..
+            }
+        ));
+        assert!(matches!(
+            config.avatars["error"].avatar,
+            AvatarConfig::Emoji {
+                foreground: Some(ref foreground),
+                ..
+            } if foreground == "#FFFFFF"
+        ));
+
+        let AvatarConfig::Emoji { foreground, .. } =
+            &mut config.avatars.get_mut("error").unwrap().avatar
+        else {
+            unreachable!();
+        };
+        *foreground = Some("not-a-color".to_owned());
+        let error = config
+            .validate(&root.path().join("config.toml"))
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("must be #RRGGBB or #RRGGBBAA"));
     }
 
     #[test]
     fn starter_template_matches_the_approved_two_line_layout() {
         assert_eq!(
             STARTER_TEMPLATE,
-            r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
+            r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
 {{ message }}"#
         );
         assert_eq!(

@@ -2,6 +2,7 @@
 
 [discord]
 # webhook_url = "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"
+# Required for channel routing and local, emoji, text, or font-icon avatars.
 # bot_token = "YOUR_BOT_TOKEN"
 webhook_name = "Notify Me"
 
@@ -26,6 +27,7 @@ template = "defaults"
 asset_base_url = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/"
 
 [avatars.letter]
+description = "General notification avatar"
 type = "text"
 text = "N"
 foreground = "#FFFFFF"
@@ -34,8 +36,58 @@ size = 256
 font_size = 150.0
 
 [avatars.rocket]
+description = "Use for launches and deployments"
 type = "emoji"
 emoji = "🚀"
 background = "#5865F2"
 size = 256
 scale = 0.72
+
+[avatars.started]
+description = "Agent work started"
+type = "emoji"
+emoji = "🚀"
+background = "#FFFFFF"
+size = 256
+scale = 0.72
+
+[avatars.progress]
+description = "Agent work in progress"
+type = "emoji"
+emoji = "🔄"
+background = "#3B88C3"
+size = 256
+scale = 0.72
+
+[avatars.success]
+description = "Agent work completed successfully"
+type = "emoji"
+emoji = "✅"
+background = "#77B255"
+size = 256
+scale = 0.72
+
+[avatars.needs-input]
+description = "Agent needs user input"
+type = "emoji"
+emoji = "❓"
+background = "#F1C40F"
+size = 256
+scale = 0.72
+
+[avatars.warning]
+description = "Agent warning"
+type = "emoji"
+emoji = "⚠️"
+background = "#E67E22"
+size = 256
+scale = 0.72
+
+[avatars.error]
+description = "Agent work or verification failed"
+type = "emoji"
+emoji = "❌"
+foreground = "#FFFFFF"
+background = "#DD2E44"
+size = 256
+scale = 0.576

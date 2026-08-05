@@ -435,6 +435,7 @@ mod tests {
         RuntimeMetadata::fixed(
             "mem",
             "vultr",
+            None,
             "7/31 12:00:11",
             1_775_000_011,
             "2026-07-31T12:00:11Z",
@@ -466,6 +467,7 @@ mod tests {
             json!({
                 "user": "mem",
                 "hostname": "vultr",
+                "codex_thread_id": null,
                 "timestamp": {
                     "local": "7/31 12:00:11",
                     "unix": 1_775_000_011_i64,
@@ -517,6 +519,28 @@ mod tests {
         assert_eq!(
             rendered.payload["content"],
             "> **🏠 `mem@vultr`   📅 `7/31 12:00:11`**\nbuild **complete**"
+        );
+    }
+
+    #[test]
+    fn starter_template_appends_the_codex_thread_when_available() {
+        let runtime = RuntimeMetadata::fixed(
+            "mem",
+            "vultr",
+            Some("019fb637"),
+            "8/3 12:00:11",
+            1_775_000_011,
+            "2026-08-03T12:00:11Z",
+        );
+        let context =
+            build_context_with_runtime(Some("build complete".to_owned()), None, &[], runtime)
+                .unwrap();
+        let source = render_source(crate::config::STARTER_TEMPLATE, &context).unwrap();
+        let rendered = parse_rendered("defaults", &source).unwrap();
+
+        assert_eq!(
+            rendered.payload["content"],
+            "> **🏠 `mem@vultr`   📅 `8/3 12:00:11`   🧵 `019fb637`**\nbuild complete"
         );
     }
 

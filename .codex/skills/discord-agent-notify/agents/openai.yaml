@@ -1,0 +1,4 @@
+interface:
+  display_name: "Discord Agent Notify"
+  short_description: "Send structured agent status notifications"
+  default_prompt: "Use $discord-agent-notify to report this agent status on Discord."

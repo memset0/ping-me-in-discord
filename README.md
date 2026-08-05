@@ -55,7 +55,11 @@ notify-me-on-discord init
 ```console
 notify-me-on-discord config path
 notify-me-on-discord config validate
+pingme channels list --json
+pingme avatar list --json
 ```
+
+后两条命令只输出可安全选择的 channel/avatar 元数据，不会打印 Bot token、webhook URL 或头像源路径，适合 agent 使用。
 
 ## Discord 凭据
 
@@ -111,11 +115,11 @@ CLI 不会在正常输出、dry-run 或 API 错误中打印这些秘密。
 不指定模板时使用 `[defaults].template`，其初始值为 `defaults`，对应 `templates/defaults.md`。新初始化的默认模板是：
 
 ```jinja
-> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`**
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
 {{ message }}
 ```
 
-因此：
+因此普通 shell 调用仍显示原来的 hostname 和时间；从 Codex 调用且存在 `CODEX_THREAD_ID` 时，时间后还会追加当前 conversation ID：
 
 ```console
 pingme 'build completed'
@@ -126,11 +130,12 @@ pingme 'build completed'
 每次渲染都会自动提供一个保留的 `runtime` object：
 
 - `runtime.user` 和 `runtime.hostname`：当前系统身份；读取失败时分别为 `unknown-user` 和 `unknown-host`。
+- `runtime.codex_thread_id`：可选的当前 Codex conversation ID，来自 `CODEX_THREAD_ID`；普通 shell 中通常为 `null`。
 - `runtime.timestamp.local`：运行机器本地时间，格式为 `M/D HH:mm:ss`。
 - `runtime.timestamp.unix`：同一时刻的 Unix 秒数。
 - `runtime.timestamp.iso8601`：同一时刻的 UTC ISO 8601 表示。
 
-`runtime` 不能由 `--data` 或 `--var` 覆盖；发生冲突时 CLI 会在联网前报错。hostname 可能包含内部基础设施名称，不希望发送时可直接从自己的模板中删除元信息行。installer 和不带 `--force` 的初始化不会覆盖已有 `templates/defaults.md`，所以升级用户需要自行选择是否采用新版模板。
+`runtime` 不能由 `--data` 或 `--var` 覆盖；发生冲突时 CLI 会在联网前报错。hostname 和 thread ID 可能属于内部元信息，不希望发送时可从自己的模板中删除对应字段。installer 和不带 `--force` 的初始化不会覆盖已有 `templates/defaults.md`，所以升级用户需要自行把上面的条件片段合入本机模板。
 
 模板可在开头使用 YAML frontmatter：
 
@@ -197,9 +202,28 @@ frontmatter、全部头像类型和配置字段详见 [配置参考](docs/config
 `config.toml` 使用 `[avatars.<name>]` 定义可复用 profile；CLI `--avatar <name>`、模板 `avatar` 和 `[defaults].avatar` 都可以选择它：
 
 - `image`：HTTPS 图片 URL 直接成为当前消息的 `avatar_url`；本地图片会居中裁剪成正方形 PNG。
-- `emoji`：下载并缓存透明 Twemoji 图片，再渲染到指定背景色。
+- `emoji`：下载并缓存透明 Twemoji 图片，再渲染到指定背景色；可选 `foreground` 会在保留透明轮廓和抗锯齿的前提下统一重着色，`scale` 省略时为 `0.72` 且可在每个 profile 中独立设置。
 - `text`：把汉字、英文字母或短文本居中渲染，前景色和背景色均可配置。
 - `font-icon`：从用户提供的 TTF/OTF/TTC 字体中渲染一个 glyph，例如 Font Awesome icon。
+
+profile 可用不影响渲染的 `description` 描述适用场景，方便人或 agent 选择：
+
+```toml
+[avatars.release]
+description = "Use for successful releases"
+type = "emoji"
+emoji = "🚀"
+background = "#5865F2"
+```
+
+新初始化的配置还提供 `started`、`progress`、`success`、`needs-input`、`warning` 和 `error` 六个 agent 状态 profile。严格通知 skill 只传递 `--avatar <status>`，emoji、颜色、尺寸和 scale 全部来自 `config.toml`；其中 `error` 默认采用已确认的 `scale = 0.576`。升级不会覆盖既有配置，现有用户需从 [完整示例](examples/config.toml) 手动合入这些通用 profile block。
+
+查看安全摘要：
+
+```console
+pingme avatar list
+pingme avatar list --json
+```
 
 预览本地或生成头像：
 
@@ -211,6 +235,7 @@ notify-me-on-discord avatar preview rocket --output rocket.png
 
 ```console
 pingme 'rocket launched' --avatar-emoji '🚀' --avatar-background '#5865F2'
+pingme 'verification failed' --avatar-emoji '❌' --avatar-foreground '#FFFFFF' --avatar-background '#DD2E44'
 pingme 'build completed' --avatar-text '构' --avatar-foreground '#FFFFFF' --avatar-background '#57F287'
 pingme 'custom image' --avatar-file ./avatar.png --avatar-size 256
 pingme 'remote image' --avatar-url https://example.com/avatar.png
@@ -218,7 +243,28 @@ pingme 'remote image' --avatar-url https://example.com/avatar.png
 
 一次只能使用 `--avatar`、`--avatar-url`、`--avatar-file`、`--avatar-emoji`、`--avatar-text`、`--avatar-icon` 中的一项。字体图标还需要 `--avatar-font`；可选样式参数包括 `--avatar-foreground`、`--avatar-background`、`--avatar-size`、`--avatar-font-size` 和 `--avatar-scale`。
 
-Discord 的 `avatar_url` 必须是 Discord 能访问的 URL。本地图片、emoji、文字和 font icon 没有公网 URL，因此 CLI 会先用 webhook token 把 PNG 设置为该 webhook 的默认头像，再发送消息。若三层配置都没有指定头像，CLI 使用 Discord 默认头像；如果该 webhook 曾被本 CLI 设置过生成头像，会先将其重置为 `null`。多个主机并发改变同一个 webhook 时仍可能竞争，建议为不同身份使用不同 webhook。远程图片 URL 不受此限制。
+Discord 的 `avatar_url` 必须是 Discord 能访问的 HTTPS URL，因此远程图片会直接作为当前消息的覆盖头像。本地图片、emoji、文字和 font icon 会渲染为 PNG，并由 CLI 按“目标 channel + 图片摘要”创建和复用独立 incoming webhook 身份；不同生成头像不会再反复修改同一个基础 webhook。此路径要求解析出目标 channel，并配置具有该 channel `MANAGE_WEBHOOKS` 权限的 Bot token，缺少条件时命令会明确失败，不会静默退回默认头像。
+
+若三层配置都没有指定头像，CLI 始终通过基础 webhook 使用 Discord 默认头像。升级后第一次遇到旧版曾修改过的基础 webhook 时，CLI 会先将其头像重置为 `null` 并清除旧状态记录。
+
+## Codex agent 通知 skills
+
+仓库提供两个初版 Codex skill：
+
+- `$discord-notify`：自由组织 Markdown；先用 JSON 命令选择配置好的 channel 和可选 avatar profile。
+- `$discord-agent-notify`：严格使用 `started`、`progress`、`success`、`needs-input`、`warning` 或 `error` 状态，并直接选择同名配置 profile；skill 不保存 emoji、颜色或 scale。
+
+两个 skill 都会读取 `CODEX_THREAD_ID`，先 dry-run 并确认本机模板确实渲染了该 ID，再执行真实发送。它们的所有 CLI 调用均通过各自的 `scripts/run-pingme.sh`：原调用失败后只执行一次短错误上报，并保留原失败 exit status。
+
+错误上报也可单独调用：
+
+```console
+pingme report-error --channel alerts
+```
+
+它不读取模板或渲染头像，只发送 `⚠️ Agent notification failed ...`。指定 channel 不存在或投递失败时会尝试不同的 `[defaults].channel` 一次；若配置、凭据或网络整体不可用，则本地返回失败且不会递归。
+
+这些 skill 当前位于项目的 `.codex/skills/`，本次初版不包含 Claude Code 版本。使用旧 `defaults.md` 的本机必须先手动采用上面的 `runtime.codex_thread_id` 条件片段，并把六个状态 profile 合入现有 `config.toml`；升级不会覆盖用户模板或配置。
 
 ## 开发与发布
 

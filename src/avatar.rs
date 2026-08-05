@@ -19,10 +19,7 @@ use sha2::{Digest, Sha256};
 use unicode_segmentation::UnicodeSegmentation;
 use url::Url;
 
-use crate::{
-    config::{AvatarConfig, EmojiConfig, resolve_path},
-    state::AppState,
-};
+use crate::config::{AvatarConfig, AvatarProfile, EmojiConfig, resolve_path};
 
 #[derive(Clone, Debug)]
 pub enum ResolvedAvatar {
@@ -78,6 +75,7 @@ impl AvatarRenderer {
             AvatarConfig::Emoji {
                 emoji,
                 background,
+                foreground,
                 size,
                 scale,
             } => {
@@ -86,6 +84,7 @@ impl AvatarRenderer {
                     .await?;
                 Ok(ResolvedAvatar::Png(render_emoji(
                     &artwork,
+                    foreground.as_deref().map(parse_color).transpose()?,
                     parse_color(background)?,
                     *size,
                     *scale,
@@ -225,20 +224,13 @@ pub fn digest(png: &[u8]) -> String {
 }
 
 pub fn select_profile<'a>(
-    profiles: &'a BTreeMap<String, AvatarConfig>,
+    profiles: &'a BTreeMap<String, AvatarProfile>,
     name: &str,
 ) -> Result<&'a AvatarConfig> {
     profiles
         .get(name)
+        .map(|profile| &profile.avatar)
         .with_context(|| format!("unknown avatar profile `{name}`"))
-}
-
-pub fn needs_webhook_update(state: &AppState, webhook_id: &str, png_digest: &str) -> bool {
-    state.avatar_digests.get(webhook_id).map(String::as_str) != Some(png_digest)
-}
-
-pub fn needs_webhook_reset(state: &AppState, webhook_id: &str) -> bool {
-    state.avatar_digests.contains_key(webhook_id)
 }
 
 pub fn parse_color(value: &str) -> Result<Rgba<u8>> {
@@ -289,16 +281,37 @@ fn square_png(bytes: &[u8], size: u32) -> Result<Vec<u8>> {
     encode_png(resized)
 }
 
-fn render_emoji(artwork: &[u8], background: Rgba<u8>, size: u32, scale: f32) -> Result<Vec<u8>> {
-    let image = image::load_from_memory(artwork)
+fn render_emoji(
+    artwork: &[u8],
+    foreground: Option<Rgba<u8>>,
+    background: Rgba<u8>,
+    size: u32,
+    scale: f32,
+) -> Result<Vec<u8>> {
+    let mut image = image::load_from_memory(artwork)
         .context("could not decode emoji artwork")?
         .to_rgba8();
+    if let Some(foreground) = foreground {
+        recolor_emoji_artwork(&mut image, foreground);
+    }
     let target = ((size as f32 * scale).round() as u32).clamp(1, size);
     let artwork = resize(&image, target, target, FilterType::Lanczos3);
     let mut canvas = RgbaImage::from_pixel(size, size, background);
     let offset = i64::from((size - target) / 2);
     overlay(&mut canvas, &artwork, offset, offset);
     encode_png(canvas)
+}
+
+fn recolor_emoji_artwork(image: &mut RgbaImage, foreground: Rgba<u8>) {
+    for pixel in image.pixels_mut() {
+        let alpha = (u16::from(pixel.0[3]) * u16::from(foreground.0[3]) + 127) / u16::from(u8::MAX);
+        pixel.0 = [
+            foreground.0[0],
+            foreground.0[1],
+            foreground.0[2],
+            alpha as u8,
+        ];
+    }
 }
 
 fn render_text(
@@ -502,10 +515,25 @@ mod tests {
         DynamicImage::ImageRgba8(source)
             .write_to(&mut bytes, ImageFormat::Png)
             .unwrap();
-        let output = render_emoji(&bytes.into_inner(), Rgba([0, 0, 255, 255]), 100, 0.5).unwrap();
+        let output =
+            render_emoji(&bytes.into_inner(), None, Rgba([0, 0, 255, 255]), 100, 0.5).unwrap();
         let image = image::load_from_memory(&output).unwrap().to_rgba8();
         assert_eq!(*image.get_pixel(0, 0), Rgba([0, 0, 255, 255]));
         assert_eq!(*image.get_pixel(50, 50), Rgba([255, 0, 0, 255]));
+    }
+
+    #[test]
+    fn recolors_emoji_rgb_while_preserving_its_alpha_shape() {
+        let mut image = RgbaImage::new(3, 1);
+        image.put_pixel(0, 0, Rgba([221, 46, 68, 255]));
+        image.put_pixel(1, 0, Rgba([221, 46, 68, 128]));
+        image.put_pixel(2, 0, Rgba([0, 0, 0, 0]));
+
+        recolor_emoji_artwork(&mut image, Rgba([255, 255, 255, 255]));
+
+        assert_eq!(*image.get_pixel(0, 0), Rgba([255, 255, 255, 255]));
+        assert_eq!(*image.get_pixel(1, 0), Rgba([255, 255, 255, 128]));
+        assert_eq!(*image.get_pixel(2, 0), Rgba([255, 255, 255, 0]));
     }
 
     #[test]
@@ -536,25 +564,17 @@ mod tests {
     }
 
     #[test]
-    fn selects_named_profiles_and_compares_digests() {
+    fn selects_named_profiles() {
         let mut profiles = BTreeMap::new();
         profiles.insert(
             "remote".to_owned(),
             AvatarConfig::Image {
                 source: "https://example.com/avatar.png".to_owned(),
                 size: 256,
-            },
+            }
+            .into(),
         );
         assert!(select_profile(&profiles, "remote").is_ok());
         assert!(select_profile(&profiles, "missing").is_err());
-
-        let mut state = AppState::default();
-        assert!(needs_webhook_update(&state, "123", "abc"));
-        state
-            .avatar_digests
-            .insert("123".to_owned(), "abc".to_owned());
-        assert!(!needs_webhook_update(&state, "123", "abc"));
-        assert!(needs_webhook_reset(&state, "123"));
-        assert!(!needs_webhook_reset(&state, "456"));
     }
 }

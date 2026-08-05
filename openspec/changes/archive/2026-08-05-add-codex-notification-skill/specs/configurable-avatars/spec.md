@@ -1,21 +1,4 @@
-# configurable-avatars Specification
-
-## Purpose
-
-Define reusable avatar profiles that turn URLs, local images, emoji, text, and font glyphs into Discord webhook identities.
-
-## Requirements
-
-### Requirement: Templates select named avatar profiles
-Configuration SHALL define named avatar profiles under `[avatars.<name>]`. CLI `--avatar`, template frontmatter `avatar`, and `[defaults].avatar` SHALL select those profiles using the standard precedence order.
-
-#### Scenario: Template-specific avatar
-- **WHEN** a template frontmatter selects `release` and configuration defines that profile
-- **THEN** the release profile is used for that message
-
-#### Scenario: Unknown avatar
-- **WHEN** a template selects a profile that does not exist
-- **THEN** the CLI fails before sending
+## ADDED Requirements
 
 ### Requirement: Avatar profiles describe their intended use
 Each `[avatars.<name>]` profile SHALL accept an optional `description` string for human and agent selection. A configured description SHALL be non-empty after trimming and no longer than 200 Unicode characters. It SHALL not affect rendering or send precedence.
@@ -50,31 +33,7 @@ Newly initialized configuration SHALL define ordinary user-editable emoji profil
 - **WHEN** an existing user changes a status profile's source, color, size, or scale and later upgrades the binary
 - **THEN** the user's configuration remains unchanged and the strict skill uses the customized profile through the same name
 
-### Requirement: CLI supports one-off avatar sources
-The CLI SHALL accept mutually exclusive one-off avatar sources for an HTTPS URL, local file, emoji, text, or font glyph. Type-appropriate `--avatar-*` modifiers SHALL configure colors, font, dimensions, and emoji scale. Selecting any CLI avatar source SHALL atomically override avatar choices from frontmatter and settings; omitted modifiers SHALL use documented built-in defaults rather than fields from a lower-layer avatar.
-
-#### Scenario: One-off emoji avatar
-- **WHEN** the user supplies `--avatar-emoji 🚀 --avatar-background '#5865F2'`
-- **THEN** the CLI renders that one-off avatar without requiring a named profile
-
-#### Scenario: Profile selected from CLI
-- **WHEN** the user supplies `--avatar release` and configuration defines `[avatars.release]`
-- **THEN** the configured profile is selected ahead of frontmatter and settings
-
-#### Scenario: Conflicting avatar sources
-- **WHEN** the user supplies both `--avatar release` and `--avatar-text R`
-- **THEN** argument parsing fails before configuration or network access
-
-### Requirement: Remote and local images are supported
-An image avatar profile SHALL accept either an HTTPS URL or a local image path relative to the configuration file. Remote URLs SHALL be passed as per-message `avatar_url`; local images SHALL be decoded, center-cropped to a square, resized, and encoded as PNG.
-
-#### Scenario: Remote image URL
-- **WHEN** an image profile contains an HTTPS URL
-- **THEN** the rendered webhook payload uses that URL without downloading or modifying the image
-
-#### Scenario: Local image
-- **WHEN** an image profile references a readable local JPEG, PNG, GIF, or WebP
-- **THEN** the CLI produces a square PNG suitable for a Discord webhook avatar
+## MODIFIED Requirements
 
 ### Requirement: Emoji avatars have configurable backgrounds
 An emoji avatar profile SHALL accept one Unicode emoji, a background color, optional sizing, an optional foreground color, and an optional scale. Scale SHALL default to `0.72` when omitted and SHALL remain independently configurable for every profile. The CLI SHALL expose the same optional foreground and scale modifiers for one-off emoji avatars. It SHALL resolve transparent emoji artwork, cache it in the user data directory, center it on the configured background, and render a square PNG. When a foreground is supplied, the renderer SHALL replace the artwork's visible RGB colors while preserving its original alpha mask and anti-aliased shape. When omitted, the original emoji colors SHALL remain unchanged.
@@ -94,24 +53,6 @@ An emoji avatar profile SHALL accept one Unicode emoji, a background color, opti
 #### Scenario: Emoji asset is cached
 - **WHEN** the same emoji is rendered after its artwork has been cached
 - **THEN** the CLI uses the cached asset without another provider request
-
-### Requirement: Text avatars support Unicode and colors
-A text avatar profile SHALL accept a short Unicode string, foreground color, background color, and optional font path and size. The CLI SHALL center the text both horizontally and vertically and SHALL use a configured or system font that contains the requested glyphs.
-
-#### Scenario: Chinese character avatar
-- **WHEN** a text profile specifies `告` and an available font containing that glyph
-- **THEN** the CLI renders the centered character using the configured foreground and background colors
-
-#### Scenario: Missing glyph support
-- **WHEN** no configured or discoverable font contains all requested characters
-- **THEN** the CLI fails with guidance to configure a compatible font file
-
-### Requirement: Font-icon avatars use user-provided fonts
-A font-icon avatar profile SHALL accept a glyph or Unicode code point and a font file, plus foreground and background colors. It SHALL render through the same centered raster pipeline as text avatars.
-
-#### Scenario: Render a notification icon
-- **WHEN** a profile supplies a Font Awesome font and its bell glyph
-- **THEN** the CLI renders that glyph as the avatar
 
 ### Requirement: Locally rendered avatars can be used by Discord
 Before executing a message with a local or generated avatar, the CLI SHALL select an incoming webhook identity dedicated to that rendered PNG. The identity SHALL be scoped to the resolved channel ID and PNG digest, initialized with the PNG as its default avatar, cached in private local state, and reused for later sends of the same image. It SHALL preserve the message's effective username and SHALL NOT mutate the base channel webhook's default avatar. Provisioning a generated identity SHALL require a resolved channel, a Bot token, and permission to manage channel webhooks; missing prerequisites SHALL fail before normal message delivery rather than falling back to Discord's default avatar.
@@ -142,10 +83,3 @@ When CLI arguments, template frontmatter, and `[defaults]` all omit an avatar, t
 #### Scenario: Legacy generated avatar must be reset
 - **WHEN** state records that an older CLI applied a generated avatar to the base webhook
 - **THEN** the CLI resets the base webhook avatar, removes the legacy digest, and then sends using Discord's default avatar
-
-### Requirement: Avatars can be previewed
-The CLI SHALL provide a command that renders a named local or generated avatar to a user-selected PNG path without contacting Discord.
-
-#### Scenario: Preview a text avatar
-- **WHEN** the user previews a configured text profile
-- **THEN** the command writes its PNG and reports the output path

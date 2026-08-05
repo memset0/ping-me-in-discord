@@ -216,13 +216,14 @@ fn inline_avatar(arguments: &SendOptions) -> Result<AvatarConfig> {
         });
     }
     if let Some(emoji) = &arguments.avatar_emoji {
-        reject_options(arguments, &["foreground", "font", "font-size"])?;
+        reject_options(arguments, &["font", "font-size"])?;
         return Ok(AvatarConfig::Emoji {
             emoji: emoji.clone(),
             background: arguments
                 .avatar_background
                 .clone()
                 .unwrap_or_else(|| DEFAULT_AVATAR_BACKGROUND.to_owned()),
+            foreground: arguments.avatar_foreground.clone(),
             size,
             scale: arguments.avatar_scale.unwrap_or(DEFAULT_AVATAR_SCALE),
         });
@@ -340,7 +341,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        config::{DefaultsConfig, DiscordConfig, EmojiConfig, TemplatesConfig},
+        config::{AvatarProfile, DefaultsConfig, DiscordConfig, EmojiConfig, TemplatesConfig},
         template::RenderedMessage,
     };
 
@@ -367,36 +368,36 @@ mod tests {
             avatars: BTreeMap::from([
                 (
                     "settings-avatar".to_owned(),
-                    AvatarConfig::Text {
+                    AvatarProfile::from(AvatarConfig::Text {
                         text: "S".to_owned(),
                         foreground: "#FFFFFF".to_owned(),
                         background: "#5865F2".to_owned(),
                         font: None,
                         size: 256,
                         font_size: 150.0,
-                    },
+                    }),
                 ),
                 (
                     "template-avatar".to_owned(),
-                    AvatarConfig::Text {
+                    AvatarProfile::from(AvatarConfig::Text {
                         text: "T".to_owned(),
                         foreground: "#FFFFFF".to_owned(),
                         background: "#5865F2".to_owned(),
                         font: None,
                         size: 256,
                         font_size: 150.0,
-                    },
+                    }),
                 ),
                 (
                     "command-avatar".to_owned(),
-                    AvatarConfig::Text {
+                    AvatarProfile::from(AvatarConfig::Text {
                         text: "C".to_owned(),
                         foreground: "#FFFFFF".to_owned(),
                         background: "#5865F2".to_owned(),
                         font: None,
                         size: 256,
                         font_size: 150.0,
-                    },
+                    }),
                 ),
             ]),
         }
@@ -504,6 +505,7 @@ mod tests {
                 profile: AvatarConfig::Emoji {
                     ref emoji,
                     ref background,
+                    foreground: None,
                     size: 256,
                     scale,
                 },
@@ -511,6 +513,33 @@ mod tests {
             }) if emoji == "🚀" && background == "#5865F2" && scale == 0.72
         ));
         assert!(resolved.payload.get("avatar_url").is_none());
+    }
+
+    #[test]
+    fn one_off_emoji_accepts_foreground_recoloring() {
+        let arguments = SendOptions {
+            avatar_emoji: Some("❌".to_owned()),
+            avatar_foreground: Some("#FFFFFF".to_owned()),
+            avatar_background: Some("#DD2E44".to_owned()),
+            ..SendOptions::default()
+        };
+        let resolved = resolve(rendered(), &arguments, &configuration()).unwrap();
+        assert!(matches!(
+            resolved.avatar,
+            Some(AvatarSelection::Inline {
+                profile: AvatarConfig::Emoji {
+                    ref emoji,
+                    ref background,
+                    foreground: Some(ref foreground),
+                    size: 256,
+                    scale,
+                },
+                ..
+            }) if emoji == "❌"
+                && foreground == "#FFFFFF"
+                && background == "#DD2E44"
+                && scale == 0.72
+        ));
     }
 
     #[test]

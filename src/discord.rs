@@ -13,6 +13,7 @@ use crate::{
 };
 
 const DISCORD_API_V10: &str = "https://discord.com/api/v10/";
+const GENERATED_AVATAR_DIGEST_PREFIX_LENGTH: usize = 12;
 
 #[derive(Clone)]
 pub struct WebhookUrl {
@@ -116,7 +117,7 @@ impl DiscordClient {
     }
 
     #[cfg(test)]
-    fn for_test(api_base: Url) -> Self {
+    pub(crate) fn for_test(api_base: Url) -> Self {
         Self {
             http: reqwest::Client::new(),
             api_base,
@@ -232,12 +233,107 @@ impl DiscordClient {
         self.webhook_from_response(webhook)
     }
 
-    pub async fn modify_avatar(&self, webhook: &WebhookUrl, png: &[u8]) -> Result<()> {
-        self.set_avatar(
-            webhook,
-            Value::String(format!("data:image/png;base64,{}", STANDARD.encode(png))),
-        )
-        .await
+    pub async fn resolve_generated_avatar_webhook(
+        &self,
+        config: &DiscordConfig,
+        state: &mut AppState,
+        channel_id: &str,
+        png_digest: &str,
+        png: &[u8],
+    ) -> Result<(WebhookUrl, bool)> {
+        ensure!(
+            !channel_id.is_empty()
+                && channel_id
+                    .chars()
+                    .all(|character| character.is_ascii_digit()),
+            "a resolved numeric Discord channel is required for locally rendered avatars"
+        );
+        ensure!(
+            png_digest.len() == 64
+                && png_digest
+                    .chars()
+                    .all(|character| character.is_ascii_hexdigit()),
+            "generated avatar digest must be a SHA-256 hexadecimal string"
+        );
+
+        if let Some(value) = state
+            .generated_avatar_webhooks
+            .get(channel_id)
+            .and_then(|avatars| avatars.get(png_digest))
+        {
+            let webhook = WebhookUrl::parse_with_policy(value, self.enforce_discord_host)
+                .with_context(|| {
+                    format!(
+                        "cached generated-avatar webhook for channel {channel_id} and digest {} is invalid; remove that entry from the state file",
+                        &png_digest[..GENERATED_AVATAR_DIGEST_PREFIX_LENGTH]
+                    )
+                })?;
+            return Ok((webhook, false));
+        }
+
+        let webhook = self
+            .provision_generated_avatar(config, channel_id, png_digest, png)
+            .await
+            .with_context(|| {
+                format!("could not prepare a generated-avatar webhook for channel {channel_id}")
+            })?;
+        state
+            .generated_avatar_webhooks
+            .entry(channel_id.to_owned())
+            .or_default()
+            .insert(png_digest.to_owned(), webhook.secret_url().to_owned());
+        Ok((webhook, true))
+    }
+
+    async fn provision_generated_avatar(
+        &self,
+        config: &DiscordConfig,
+        channel_id: &str,
+        png_digest: &str,
+        png: &[u8],
+    ) -> Result<WebhookUrl> {
+        let bot_token = nonempty(config.bot_token.as_deref()).context(
+            "discord.bot_token is required for locally rendered avatars (or set DISCORD_NOTIFICATION_BOT_TOKEN)",
+        )?;
+        let endpoint = self
+            .api_base
+            .join(&format!("channels/{channel_id}/webhooks"))
+            .context("could not construct the generated-avatar webhook URL")?;
+        let name = generated_avatar_webhook_name(&config.webhook_name, png_digest);
+        let avatar = format!("data:image/png;base64,{}", STANDARD.encode(png));
+        let response = self
+            .send_with_retry(
+                Method::POST,
+                endpoint,
+                Some(bot_token),
+                Some(&json!({ "name": name, "avatar": avatar })),
+                &[],
+            )
+            .await?;
+        if response.status == StatusCode::FORBIDDEN {
+            bail!(
+                "Discord denied generated-avatar webhook creation; grant the Bot MANAGE_WEBHOOKS in channel {channel_id}"
+            );
+        }
+        ensure_success("create generated-avatar webhook", &response, &[bot_token])?;
+        let webhook: WebhookResponse = serde_json::from_str(&response.body)
+            .context("Discord returned invalid generated-avatar webhook data")?;
+        self.webhook_from_response(webhook)
+    }
+
+    pub async fn restore_legacy_base_avatar(
+        &self,
+        state: &mut AppState,
+        webhook: &WebhookUrl,
+    ) -> Result<bool> {
+        if !state.avatar_digests.contains_key(webhook.id()) {
+            return Ok(false);
+        }
+        self.reset_avatar(webhook)
+            .await
+            .context("could not restore the base webhook's default avatar")?;
+        state.avatar_digests.remove(webhook.id());
+        Ok(true)
     }
 
     pub async fn reset_avatar(&self, webhook: &WebhookUrl) -> Result<()> {
@@ -422,6 +518,17 @@ fn nonempty(value: Option<&str>) -> Option<&str> {
     value.filter(|value| !value.trim().is_empty())
 }
 
+fn generated_avatar_webhook_name(base: &str, png_digest: &str) -> String {
+    let digest_prefix: String = png_digest
+        .chars()
+        .take(GENERATED_AVATAR_DIGEST_PREFIX_LENGTH)
+        .collect();
+    let suffix = format!(" avatar-{digest_prefix}");
+    let available = 80_usize.saturating_sub(suffix.chars().count());
+    let base: String = base.chars().take(available).collect();
+    format!("{base}{suffix}")
+}
+
 fn is_discord_host(host: &str) -> bool {
     host == "discord.com"
         || host.ends_with(".discord.com")
@@ -439,7 +546,7 @@ mod tests {
     use serde_json::json;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
-        matchers::{body_json, header, method, path, query_param},
+        matchers::{body_json, header, method, path},
     };
 
     use super::*;
@@ -540,39 +647,133 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn modifies_avatar_and_executes_with_confirmation() {
+    async fn creates_and_reuses_generated_avatar_identity() {
         let server = MockServer::start().await;
-        Mock::given(method("PATCH"))
-            .and(path("/api/v10/webhooks/456/webhook-secret"))
+        let digest = "a".repeat(64);
+        Mock::given(method("POST"))
+            .and(path("/api/v10/channels/123/webhooks"))
+            .and(header("authorization", "Bot bot-secret"))
             .and(body_json(json!({
+                "name": "Notify Me avatar-aaaaaaaaaaaa",
                 "avatar": "data:image/png;base64,cG5n"
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "id": "456",
+                "id": "789",
                 "type": 1,
-                "name": "Notify Me",
-                "token": "webhook-secret"
+                "name": "Notify Me avatar-aaaaaaaaaaaa",
+                "token": "avatar-secret"
             })))
-            .expect(1)
-            .mount(&server)
-            .await;
-        Mock::given(method("POST"))
-            .and(path("/api/v10/webhooks/456/webhook-secret"))
-            .and(query_param("wait", "true"))
-            .and(body_json(json!({"content": "hello"})))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "999"})))
             .expect(1)
             .mount(&server)
             .await;
 
         let client = test_client(&server).await;
-        let webhook = test_webhook(&server);
-        client.modify_avatar(&webhook, b"png").await.unwrap();
-        let message_id = client
-            .execute(&webhook, &json!({"content": "hello"}), None)
+        let mut state = AppState::default();
+        let (created, changed) = client
+            .resolve_generated_avatar_webhook(&test_config(), &mut state, "123", &digest, b"png")
             .await
             .unwrap();
-        assert_eq!(message_id, "999");
+        let (cached, cached_changed) = client
+            .resolve_generated_avatar_webhook(&test_config(), &mut state, "123", &digest, b"png")
+            .await
+            .unwrap();
+
+        assert_eq!(created.id(), "789");
+        assert_eq!(cached.id(), "789");
+        assert!(changed);
+        assert!(!cached_changed);
+        let expected_url = format!("{}/api/v10/webhooks/789/avatar-secret", server.uri());
+        assert_eq!(
+            state
+                .generated_avatar_webhooks
+                .get("123")
+                .and_then(|avatars| avatars.get(&digest))
+                .map(String::as_str),
+            Some(expected_url.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn distinct_generated_digests_use_distinct_identities() {
+        let server = MockServer::start().await;
+        let first_digest = "a".repeat(64);
+        let second_digest = "b".repeat(64);
+        for (digest, png, webhook, token) in [
+            (&first_digest, "Zmlyc3Q=", "789", "first-avatar-secret"),
+            (&second_digest, "c2Vjb25k", "790", "second-avatar-secret"),
+        ] {
+            let prefix = &digest[..GENERATED_AVATAR_DIGEST_PREFIX_LENGTH];
+            Mock::given(method("POST"))
+                .and(path("/api/v10/channels/123/webhooks"))
+                .and(body_json(json!({
+                    "name": format!("Notify Me avatar-{prefix}"),
+                    "avatar": format!("data:image/png;base64,{png}")
+                })))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "id": webhook,
+                    "type": 1,
+                    "name": format!("Notify Me avatar-{prefix}"),
+                    "token": token
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+
+        let client = test_client(&server).await;
+        let mut state = AppState::default();
+        let (first, _) = client
+            .resolve_generated_avatar_webhook(
+                &test_config(),
+                &mut state,
+                "123",
+                &first_digest,
+                b"first",
+            )
+            .await
+            .unwrap();
+        let (second, _) = client
+            .resolve_generated_avatar_webhook(
+                &test_config(),
+                &mut state,
+                "123",
+                &second_digest,
+                b"second",
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(first.id(), "789");
+        assert_eq!(second.id(), "790");
+        assert_eq!(state.generated_avatar_webhooks["123"].len(), 2);
+    }
+
+    #[tokio::test]
+    async fn generated_avatar_requires_bot_credentials() {
+        let client = DiscordClient::new().unwrap();
+        let config = DiscordConfig {
+            webhook_url: Some("https://discord.com/api/webhooks/111/direct-secret".to_owned()),
+            bot_token: None,
+            webhook_name: "Notify Me".to_owned(),
+        };
+        let error = client
+            .resolve_generated_avatar_webhook(
+                &config,
+                &mut AppState::default(),
+                "123",
+                &"a".repeat(64),
+                b"png",
+            )
+            .await
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("discord.bot_token is required"));
+    }
+
+    #[test]
+    fn generated_avatar_webhook_names_fit_discord_limit() {
+        let name = generated_avatar_webhook_name(&"界".repeat(80), &"a".repeat(64));
+        assert_eq!(name.chars().count(), 80);
+        assert!(name.ends_with(" avatar-aaaaaaaaaaaa"));
     }
 
     #[tokio::test]
@@ -593,6 +794,44 @@ mod tests {
 
         let client = test_client(&server).await;
         client.reset_avatar(&test_webhook(&server)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn restores_legacy_base_avatar_once() {
+        let server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path("/api/v10/webhooks/456/webhook-secret"))
+            .and(body_json(json!({"avatar": null})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "456",
+                "type": 1,
+                "name": "Notify Me",
+                "token": "webhook-secret"
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = test_client(&server).await;
+        let webhook = test_webhook(&server);
+        let mut state = AppState::default();
+        state
+            .avatar_digests
+            .insert("456".to_owned(), "legacy-digest".to_owned());
+
+        assert!(
+            client
+                .restore_legacy_base_avatar(&mut state, &webhook)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !client
+                .restore_legacy_base_avatar(&mut state, &webhook)
+                .await
+                .unwrap()
+        );
+        assert!(!state.avatar_digests.contains_key("456"));
     }
 
     #[tokio::test]

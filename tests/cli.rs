@@ -25,9 +25,11 @@ directory = "templates"
 
 [defaults]
 template = "defaults"
+channel = "settings"
 username = "Ping Me"
 
 [avatars.release]
+description = "Use for release notifications"
 type = "image"
 source = "https://example.com/release.png"
 "#,
@@ -122,6 +124,30 @@ fn conflicting_avatar_sources_are_rejected_by_argument_parser() {
 }
 
 #[test]
+fn one_off_emoji_foreground_is_accepted_in_dry_run() {
+    let (_root, config) = portable_fixture();
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "failed",
+            "--avatar-emoji",
+            "❌",
+            "--avatar-foreground",
+            "#FFFFFF",
+            "--avatar-background",
+            "#DD2E44",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"emoji\": \"❌\""))
+        .stdout(predicate::str::contains("\"foreground\": \"#FFFFFF\""))
+        .stdout(predicate::str::contains("\"background\": \"#DD2E44\""));
+}
+
+#[test]
 fn long_binary_name_supports_the_same_shorthand() {
     let (_root, config) = portable_fixture();
     let mut command = cargo_bin_cmd!("notify-me-on-discord");
@@ -185,4 +211,49 @@ fn configuration_validation_and_template_listing_work_offline() {
         .assert()
         .success()
         .stdout(predicate::eq("defaults\n"));
+}
+
+#[test]
+fn channel_listing_json_exposes_only_routing_metadata() {
+    let (_root, config) = portable_fixture();
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "channels",
+            "list",
+            "--json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"selector\": \"settings\""))
+        .stdout(predicate::str::contains("\"id\": \"111\""))
+        .stdout(predicate::str::contains("\"alias\": \"command\""))
+        .stdout(predicate::str::contains("super-secret-token").not())
+        .stdout(predicate::str::contains("release.png").not());
+}
+
+#[test]
+fn avatar_listing_json_exposes_only_safe_profile_metadata() {
+    let (_root, config) = portable_fixture();
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "avatar",
+            "list",
+            "--json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"name\": \"release\""))
+        .stdout(predicate::str::contains("\"type\": \"image\""))
+        .stdout(predicate::str::contains(
+            "\"description\": \"Use for release notifications\"",
+        ))
+        .stdout(predicate::str::contains("\"is_default\": false"))
+        .stdout(predicate::str::contains("release.png").not())
+        .stdout(predicate::str::contains("super-secret-token").not());
 }

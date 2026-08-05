@@ -15,6 +15,10 @@ pub struct AppState {
     pub provisioned_webhook_url: Option<String>,
     #[serde(default)]
     pub provisioned_webhooks: BTreeMap<String, String>,
+    /// Bot-provisioned identities keyed first by channel ID, then avatar digest.
+    #[serde(default)]
+    pub generated_avatar_webhooks: BTreeMap<String, BTreeMap<String, String>>,
+    /// Legacy record of base webhooks mutated by versions before 0.1.0.
     #[serde(default)]
     pub avatar_digests: BTreeMap<String, String>,
 }
@@ -151,6 +155,13 @@ mod tests {
             "123".to_owned(),
             "https://discord.com/api/webhooks/456/token".to_owned(),
         );
+        state.generated_avatar_webhooks.insert(
+            "123".to_owned(),
+            BTreeMap::from([(
+                "digest".to_owned(),
+                "https://discord.com/api/webhooks/789/avatar-token".to_owned(),
+            )]),
+        );
         state
             .avatar_digests
             .insert("id".to_owned(), "digest".to_owned());
@@ -164,6 +175,14 @@ mod tests {
         assert_eq!(
             loaded.provisioned_webhooks.get("123").map(String::as_str),
             Some("https://discord.com/api/webhooks/456/token")
+        );
+        assert_eq!(
+            loaded
+                .generated_avatar_webhooks
+                .get("123")
+                .and_then(|avatars| avatars.get("digest"))
+                .map(String::as_str),
+            Some("https://discord.com/api/webhooks/789/avatar-token")
         );
         assert_eq!(loaded.avatar_digests.get("id").unwrap(), "digest");
     }
