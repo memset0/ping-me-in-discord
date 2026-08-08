@@ -203,7 +203,7 @@ async fn execute_command(config_path: Option<PathBuf>, command: Command) -> Resu
         Command::Skills {
             command: SkillsCommand::Install(arguments),
         } => {
-            let summary = skills::install(arguments.scope)?;
+            let summary = skills::install(arguments.agent, arguments.scope)?;
             skills::print_summary(&summary);
             Ok(())
         }

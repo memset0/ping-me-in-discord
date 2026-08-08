@@ -31,6 +31,10 @@ fn fake_pingme(root: &Path) -> (PathBuf, PathBuf) {
 if [ "$1" = "fail" ]; then
     exit 42
 fi
+if [ "$1" = "record-session" ]; then
+    printf 'session:%s\n' "${CODEX_THREAD_ID-}" >> "$PINGME_TEST_LOG"
+    exit 0
+fi
 printf '%s\n' "$*" >> "$PINGME_TEST_LOG"
 exit 0
 "#,
@@ -41,13 +45,31 @@ exit 0
 }
 
 fn run(root: &TempDir, log: &Path, arguments: &[&str]) -> std::process::Output {
-    Command::new("/bin/sh")
+    run_with_sessions(root, log, arguments, None, None)
+}
+
+fn run_with_sessions(
+    root: &TempDir,
+    log: &Path,
+    arguments: &[&str],
+    codex_thread_id: Option<&str>,
+    claude_session_id: Option<&str>,
+) -> std::process::Output {
+    let mut command = Command::new("/bin/sh");
+    command
         .arg(SIMPLE_RUNNER)
         .args(arguments)
         .env("PATH", root.path())
         .env("PINGME_TEST_LOG", log)
-        .output()
-        .unwrap()
+        .env_remove("CODEX_THREAD_ID")
+        .env_remove("CLAUDE_CODE_SESSION_ID");
+    if let Some(codex_thread_id) = codex_thread_id {
+        command.env("CODEX_THREAD_ID", codex_thread_id);
+    }
+    if let Some(claude_session_id) = claude_session_id {
+        command.env("CLAUDE_CODE_SESSION_ID", claude_session_id);
+    }
+    command.output().unwrap()
 }
 
 #[test]
@@ -136,4 +158,72 @@ fn runner_does_not_report_success_and_supports_report_only() {
         fs::read_to_string(log).unwrap(),
         "channels list --json\nreport-error --channel test\n"
     );
+}
+
+#[test]
+fn runner_preflights_codex_and_claude_session_ids() {
+    let root = TempDir::new().unwrap();
+    let (_binary, log) = fake_pingme(root.path());
+
+    let codex = run_with_sessions(
+        &root,
+        &log,
+        &["--print-session-id"],
+        Some("codex-thread"),
+        None,
+    );
+    assert!(codex.status.success());
+    assert_eq!(codex.stdout, b"codex-thread\n");
+
+    let claude = run_with_sessions(
+        &root,
+        &log,
+        &["--print-session-id"],
+        None,
+        Some("claude-session"),
+    );
+    assert!(claude.status.success());
+    assert_eq!(claude.stdout, b"claude-session\n");
+
+    let preferred = run_with_sessions(
+        &root,
+        &log,
+        &["--print-session-id"],
+        Some("stale-codex-thread"),
+        Some("active-claude-session"),
+    );
+    assert!(preferred.status.success());
+    assert_eq!(preferred.stdout, b"active-claude-session\n");
+}
+
+#[test]
+fn runner_normalizes_claude_session_for_the_existing_cli_runtime() {
+    let root = TempDir::new().unwrap();
+    let (_binary, log) = fake_pingme(root.path());
+
+    let output = run_with_sessions(
+        &root,
+        &log,
+        &["--", "record-session"],
+        Some("stale-codex-thread"),
+        Some("active-claude-session"),
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        fs::read_to_string(log).unwrap(),
+        "session:active-claude-session\n"
+    );
+}
+
+#[test]
+fn runner_rejects_missing_session_id_without_calling_pingme() {
+    let root = TempDir::new().unwrap();
+    let (_binary, log) = fake_pingme(root.path());
+
+    let output = run(&root, &log, &["--print-session-id"]);
+
+    assert_eq!(output.status.code(), Some(65));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("no coding-agent session ID"));
+    assert!(!log.exists());
 }

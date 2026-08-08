@@ -194,13 +194,17 @@ pub enum TemplatesCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum SkillsCommand {
-    /// Install or refresh the bundled Codex skills.
+    /// Install or refresh the bundled coding-agent skills.
     Install(SkillsInstallArgs),
 }
 
 #[derive(Debug, Args)]
 pub struct SkillsInstallArgs {
-    /// Select the current project's .codex directory or the user-global Codex home.
+    /// Select the coding agent whose skills directory receives regular-file copies.
+    #[arg(long, value_enum, value_name = "AGENT", default_value = "codex")]
+    pub agent: crate::skills::SkillAgent,
+
+    /// Select the current project or user-global skills directory.
     #[arg(long, value_enum, value_name = "SCOPE")]
     pub scope: crate::skills::SkillScope,
 }

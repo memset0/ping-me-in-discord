@@ -29,8 +29,32 @@ impl SkillScope {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum SkillAgent {
+    Codex,
+    #[value(name = "claude-code", alias = "claude")]
+    ClaudeCode,
+}
+
+impl SkillAgent {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::ClaudeCode => "claude-code",
+        }
+    }
+
+    fn display_name(self) -> &'static str {
+        match self {
+            Self::Codex => "Codex",
+            Self::ClaudeCode => "Claude Code",
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct InstallSummary {
+    pub agent: SkillAgent,
     pub scope: SkillScope,
     pub destination: PathBuf,
     pub created: usize,
@@ -43,6 +67,20 @@ struct BundledFile {
     relative_path: &'static str,
     contents: &'static [u8],
     executable: bool,
+    audience: AssetAudience,
+}
+
+#[derive(Clone, Copy)]
+enum AssetAudience {
+    Shared,
+    CodexOnly,
+}
+
+impl AssetAudience {
+    fn applies_to(self, agent: SkillAgent) -> bool {
+        matches!(self, Self::Shared)
+            || matches!((self, agent), (Self::CodexOnly, SkillAgent::Codex))
+    }
 }
 
 const BUNDLED_FILES: &[BundledFile] = &[
@@ -50,26 +88,31 @@ const BUNDLED_FILES: &[BundledFile] = &[
         relative_path: "ping-me-send-message/SKILL.md",
         contents: include_bytes!("../.codex/skills/ping-me-send-message/SKILL.md"),
         executable: false,
+        audience: AssetAudience::Shared,
     },
     BundledFile {
         relative_path: "ping-me-send-message/agents/openai.yaml",
         contents: include_bytes!("../.codex/skills/ping-me-send-message/agents/openai.yaml"),
         executable: false,
+        audience: AssetAudience::CodexOnly,
     },
     BundledFile {
         relative_path: "ping-me-send-message/scripts/run-pingme.sh",
         contents: include_bytes!("../.codex/skills/ping-me-send-message/scripts/run-pingme.sh"),
         executable: true,
+        audience: AssetAudience::Shared,
     },
     BundledFile {
         relative_path: "ping-me-report-agent-status/SKILL.md",
         contents: include_bytes!("../.codex/skills/ping-me-report-agent-status/SKILL.md"),
         executable: false,
+        audience: AssetAudience::Shared,
     },
     BundledFile {
         relative_path: "ping-me-report-agent-status/agents/openai.yaml",
         contents: include_bytes!("../.codex/skills/ping-me-report-agent-status/agents/openai.yaml"),
         executable: false,
+        audience: AssetAudience::CodexOnly,
     },
     BundledFile {
         relative_path: "ping-me-report-agent-status/scripts/run-pingme.sh",
@@ -77,6 +120,7 @@ const BUNDLED_FILES: &[BundledFile] = &[
             "../.codex/skills/ping-me-report-agent-status/scripts/run-pingme.sh"
         ),
         executable: true,
+        audience: AssetAudience::Shared,
     },
 ];
 
@@ -98,29 +142,37 @@ const LEGACY_DIRECTORIES_DEEPEST_FIRST: &[&str] = &[
     "discord-agent-notify",
 ];
 
-pub fn install(scope: SkillScope) -> Result<InstallSummary> {
+pub fn install(agent: SkillAgent, scope: SkillScope) -> Result<InstallSummary> {
     let current_directory =
         env::current_dir().context("could not determine the current project directory")?;
     let codex_home = env::var_os("CODEX_HOME");
+    let claude_config_directory = env::var_os("CLAUDE_CONFIG_DIR");
     let home_directory = BaseDirs::new().map(|directories| directories.home_dir().to_path_buf());
     let destination = resolve_destination(
+        agent,
         scope,
         &current_directory,
         codex_home.as_deref(),
+        claude_config_directory.as_deref(),
         home_directory.as_deref(),
     )?;
-    install_into(scope, destination)
+    install_into(agent, scope, destination)
 }
 
 fn resolve_destination(
+    agent: SkillAgent,
     scope: SkillScope,
     current_directory: &Path,
     codex_home: Option<&OsStr>,
+    claude_config_directory: Option<&OsStr>,
     home_directory: Option<&Path>,
 ) -> Result<PathBuf> {
-    match scope {
-        SkillScope::Project => Ok(current_directory.join(".codex/skills")),
-        SkillScope::Global => {
+    match (agent, scope) {
+        (SkillAgent::Codex, SkillScope::Project) => Ok(current_directory.join(".codex/skills")),
+        (SkillAgent::ClaudeCode, SkillScope::Project) => {
+            Ok(current_directory.join(".claude/skills"))
+        }
+        (SkillAgent::Codex, SkillScope::Global) => {
             if let Some(codex_home) = codex_home.filter(|value| !value.is_empty()) {
                 return Ok(PathBuf::from(codex_home).join("skills"));
             }
@@ -130,18 +182,36 @@ fn resolve_destination(
                     "could not determine the current user's home directory; set CODEX_HOME and retry",
                 )
         }
+        (SkillAgent::ClaudeCode, SkillScope::Global) => {
+            if let Some(claude_config_directory) =
+                claude_config_directory.filter(|value| !value.is_empty())
+            {
+                return Ok(PathBuf::from(claude_config_directory).join("skills"));
+            }
+            home_directory
+                .map(|home| home.join(".claude/skills"))
+                .context(
+                    "could not determine the current user's home directory; set CLAUDE_CONFIG_DIR and retry",
+                )
+        }
     }
 }
 
-fn install_into(scope: SkillScope, destination: PathBuf) -> Result<InstallSummary> {
+fn install_into(
+    agent: SkillAgent,
+    scope: SkillScope,
+    destination: PathBuf,
+) -> Result<InstallSummary> {
     fs::create_dir_all(&destination).with_context(|| {
         format!(
-            "could not create Codex skills directory {}",
+            "could not create {} skills directory {}",
+            agent.display_name(),
             destination.display()
         )
     })?;
 
     let mut summary = InstallSummary {
+        agent,
         scope,
         destination,
         created: 0,
@@ -150,28 +220,42 @@ fn install_into(scope: SkillScope, destination: PathBuf) -> Result<InstallSummar
         removed_legacy: 0,
     };
 
-    for bundled in BUNDLED_FILES {
+    for bundled in BUNDLED_FILES
+        .iter()
+        .filter(|bundled| bundled.audience.applies_to(agent))
+    {
         let target = summary.destination.join(bundled.relative_path);
-        let existing = match fs::read(&target) {
-            Ok(contents) => Some(contents),
+        let metadata = match fs::symlink_metadata(&target) {
+            Ok(metadata) => Some(metadata),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => {
                 return Err(error).with_context(|| {
-                    format!("could not read installed skill file {}", target.display())
+                    format!(
+                        "could not inspect installed skill file {}",
+                        target.display()
+                    )
                 });
             }
         };
 
-        if existing.as_deref() == Some(bundled.contents) {
-            if ensure_executable(&target, bundled.executable)? {
-                summary.updated += 1;
-            } else {
-                summary.unchanged += 1;
+        if metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.file_type().is_file())
+        {
+            let existing = fs::read(&target).with_context(|| {
+                format!("could not read installed skill file {}", target.display())
+            })?;
+            if existing == bundled.contents {
+                if ensure_executable(&target, bundled.executable)? {
+                    summary.updated += 1;
+                } else {
+                    summary.unchanged += 1;
+                }
+                continue;
             }
-            continue;
         }
 
-        let existed = existing.is_some();
+        let existed = metadata.is_some();
         write_atomically(&target, bundled.contents, bundled.executable)?;
         if existed {
             summary.updated += 1;
@@ -180,7 +264,9 @@ fn install_into(scope: SkillScope, destination: PathBuf) -> Result<InstallSummar
         }
     }
 
-    summary.removed_legacy = remove_legacy_owned_files(&summary.destination)?;
+    if agent == SkillAgent::Codex {
+        summary.removed_legacy = remove_legacy_owned_files(&summary.destination)?;
+    }
 
     Ok(summary)
 }
@@ -279,7 +365,7 @@ fn replace_file(temporary: &Path, target: &Path) -> Result<()> {
 
 #[cfg(windows)]
 fn replace_file(temporary: &Path, target: &Path) -> Result<()> {
-    if target.exists() {
+    if fs::symlink_metadata(target).is_ok() {
         fs::remove_file(target).with_context(|| {
             format!(
                 "could not remove outdated installed skill file {}",
@@ -338,8 +424,10 @@ fn ensure_executable(_path: &Path, _executable: bool) -> Result<bool> {
 
 pub fn print_summary(summary: &InstallSummary) {
     println!(
-        "Installed Codex skills at {} (scope: {})",
+        "Installed {} skills at {} (agent: {}, scope: {})",
+        summary.agent.display_name(),
         summary.destination.display(),
+        summary.agent.as_str(),
         summary.scope.as_str()
     );
     println!(
@@ -347,9 +435,14 @@ pub fn print_summary(summary: &InstallSummary) {
         summary.created, summary.updated, summary.unchanged
     );
     println!("Legacy files: {} removed", summary.removed_legacy);
-    println!(
-        "Restart or reopen Codex to load $ping-me-send-message and $ping-me-report-agent-status."
-    );
+    match summary.agent {
+        SkillAgent::Codex => println!(
+            "Restart or reopen Codex to load $ping-me-send-message and $ping-me-report-agent-status."
+        ),
+        SkillAgent::ClaudeCode => println!(
+            "Restart or reopen Claude Code to load /ping-me-send-message and /ping-me-report-agent-status."
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -365,17 +458,28 @@ mod tests {
         let root = TempDir::new().unwrap();
         let project = root.path().join("project");
         let codex_home = root.path().join("codex-home");
+        let claude_config = root.path().join("claude-config");
         let home = root.path().join("home");
 
         assert_eq!(
-            resolve_destination(SkillScope::Project, &project, None, None).unwrap(),
+            resolve_destination(
+                SkillAgent::Codex,
+                SkillScope::Project,
+                &project,
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
             project.join(".codex/skills")
         );
         assert_eq!(
             resolve_destination(
+                SkillAgent::Codex,
                 SkillScope::Global,
                 &project,
                 Some(codex_home.as_os_str()),
+                None,
                 Some(&home),
             )
             .unwrap(),
@@ -383,21 +487,77 @@ mod tests {
         );
         assert_eq!(
             resolve_destination(
+                SkillAgent::Codex,
                 SkillScope::Global,
                 &project,
                 Some(OsStr::new("")),
+                None,
                 Some(&home)
             )
             .unwrap(),
             home.join(".codex/skills")
         );
+        assert_eq!(
+            resolve_destination(
+                SkillAgent::ClaudeCode,
+                SkillScope::Project,
+                &project,
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
+            project.join(".claude/skills")
+        );
+        assert_eq!(
+            resolve_destination(
+                SkillAgent::ClaudeCode,
+                SkillScope::Global,
+                &project,
+                None,
+                Some(claude_config.as_os_str()),
+                Some(&home),
+            )
+            .unwrap(),
+            claude_config.join("skills")
+        );
+        assert_eq!(
+            resolve_destination(
+                SkillAgent::ClaudeCode,
+                SkillScope::Global,
+                &project,
+                None,
+                Some(OsStr::new("")),
+                Some(&home),
+            )
+            .unwrap(),
+            home.join(".claude/skills")
+        );
     }
 
     #[test]
     fn missing_global_home_has_actionable_error() {
-        let error =
-            resolve_destination(SkillScope::Global, Path::new("/project"), None, None).unwrap_err();
+        let error = resolve_destination(
+            SkillAgent::Codex,
+            SkillScope::Global,
+            Path::new("/project"),
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
         assert!(format!("{error:#}").contains("set CODEX_HOME"));
+
+        let error = resolve_destination(
+            SkillAgent::ClaudeCode,
+            SkillScope::Global,
+            Path::new("/project"),
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert!(format!("{error:#}").contains("set CLAUDE_CONFIG_DIR"));
     }
 
     #[test]
@@ -408,7 +568,8 @@ mod tests {
         fs::create_dir_all(unrelated.parent().unwrap()).unwrap();
         fs::write(&unrelated, "custom").unwrap();
 
-        let first = install_into(SkillScope::Project, destination.clone()).unwrap();
+        let first =
+            install_into(SkillAgent::Codex, SkillScope::Project, destination.clone()).unwrap();
         assert_eq!(
             (
                 first.created,
@@ -419,7 +580,8 @@ mod tests {
             (6, 0, 0, 0)
         );
 
-        let second = install_into(SkillScope::Project, destination.clone()).unwrap();
+        let second =
+            install_into(SkillAgent::Codex, SkillScope::Project, destination.clone()).unwrap();
         assert_eq!(
             (
                 second.created,
@@ -435,7 +597,8 @@ mod tests {
             "outdated",
         )
         .unwrap();
-        let third = install_into(SkillScope::Project, destination.clone()).unwrap();
+        let third =
+            install_into(SkillAgent::Codex, SkillScope::Project, destination.clone()).unwrap();
         assert_eq!(
             (
                 third.created,
@@ -462,12 +625,38 @@ mod tests {
             fs::write(target, "legacy").unwrap();
         }
 
-        let summary = install_into(SkillScope::Project, destination.clone()).unwrap();
+        let summary =
+            install_into(SkillAgent::Codex, SkillScope::Project, destination.clone()).unwrap();
         assert_eq!(summary.removed_legacy, LEGACY_OWNED_FILES.len());
         assert_eq!(fs::read_to_string(preserved).unwrap(), "keep me");
         for relative_path in LEGACY_OWNED_FILES {
             assert!(!destination.join(relative_path).exists());
         }
         assert!(!destination.join("discord-agent-notify").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn installation_replaces_owned_symlink_with_regular_file() {
+        use std::os::unix::fs::symlink;
+
+        let root = TempDir::new().unwrap();
+        let destination = root.path().join("skills");
+        let target = destination.join("ping-me-send-message/SKILL.md");
+        let external = root.path().join("canonical.md");
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::write(&external, BUNDLED_FILES[0].contents).unwrap();
+        symlink(&external, &target).unwrap();
+
+        let summary =
+            install_into(SkillAgent::ClaudeCode, SkillScope::Project, destination).unwrap();
+
+        assert_eq!(
+            (summary.created, summary.updated, summary.unchanged),
+            (3, 1, 0)
+        );
+        assert!(fs::symlink_metadata(&target).unwrap().file_type().is_file());
+        assert_eq!(fs::read(&target).unwrap(), BUNDLED_FILES[0].contents);
+        assert_eq!(fs::read(&external).unwrap(), BUNDLED_FILES[0].contents);
     }
 }

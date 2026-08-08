@@ -1,10 +1,9 @@
-# agent-skill-installation Specification
+## RENAMED Requirements
 
-## Purpose
+- FROM: `### Requirement: Release binaries contain complete Codex skills`
+- TO: `### Requirement: Release binaries contain complete agent skills`
 
-Allow users to install or refresh the notification skills bundled with the CLI as regular-file copies at a predictable Codex or Claude Code project or user-global location without cloning the source repository.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Skill installation requires an explicit scope
 The CLI SHALL provide `skills install --scope <project|global> [--agent <codex|claude-code>]`. Scope SHALL remain required, while an omitted agent SHALL default to `codex` for compatibility. Codex project scope SHALL resolve to `.codex/skills` in the current directory; Codex global scope SHALL use the `skills` directory of a non-empty `CODEX_HOME`, falling back to `~/.codex/skills`. Claude Code project scope SHALL resolve to `.claude/skills` in the current directory; Claude Code global scope SHALL use the `skills` directory of a non-empty `CLAUDE_CONFIG_DIR`, falling back to `~/.claude/skills`. The command SHALL fail with an actionable diagnostic when it cannot resolve or create the selected destination.

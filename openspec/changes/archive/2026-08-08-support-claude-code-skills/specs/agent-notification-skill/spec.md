@@ -1,10 +1,13 @@
-# agent-notification-skill Specification
+## RENAMED Requirements
 
-## Purpose
+- FROM: `### Requirement: A simple Codex notification skill is available`
+- TO: `### Requirement: A simple agent notification skill is available`
+- FROM: `### Requirement: A strict Codex agent notification skill is available`
+- TO: `### Requirement: A strict agent notification skill is available`
+- FROM: `### Requirement: Normal agent notifications require a Codex thread ID`
+- TO: `### Requirement: Normal agent notifications require an agent session ID`
 
-Provide Codex and Claude Code with concise, repeatable workflows from one canonical source for sending Discord notifications while preserving channel intent, session identity, and visible failure handling.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: A simple agent notification skill is available
 The project SHALL provide one canonical skill source named `ping-me-send-message` that can be copied for Codex or Claude Code. The skill SHALL be used for intentional free-form Discord messages requested by the user or explicitly required as free-form notifications, and it SHALL NOT be selected merely to report an agent lifecycle state. The skill SHALL teach the agent to obtain the active coding-agent session ID through its runner, inspect channels with `pingme channels list --json`, inspect configured avatar profiles with `pingme avatar list --json`, and send freely formatted content through `pingme`. An explicitly requested channel or avatar SHALL take precedence; otherwise the skill SHALL use the effective default channel and SHALL omit the avatar when no suitable configured profile exists.
@@ -48,24 +51,6 @@ The project SHALL provide one canonical skill source named `ping-me-report-agent
 - **WHEN** the user asks to send arbitrary Discord Markdown or choose a custom avatar without assigning a lifecycle state
 - **THEN** the agent selects `ping-me-send-message` instead of `ping-me-report-agent-status`
 
-### Requirement: Skill instructions render as valid GitHub Flavored Markdown
-Each bundled `SKILL.md` SHALL render its headings, ordered workflow, examples, and failure rules as their intended GitHub Flavored Markdown structures. A fenced command example SHALL NOT absorb later workflow steps or headings.
-
-#### Scenario: Strict skill example remains bounded
-- **WHEN** GitHub Flavored Markdown renders the multi-line dry-run example in `ping-me-report-agent-status/SKILL.md`
-- **THEN** only the command example is rendered as code and workflow steps 7 and 8 plus `Failure rules` remain normal document content
-
-### Requirement: Strict notifications follow one compact message structure
-The strict skill SHALL format content as a bold status emoji and short title on the first line, a one- or two-sentence summary on the second line, and an optional bold `Next:` line only when a next action is useful. It SHALL exclude logs, stack traces, credentials, tokens, webhook URLs, and detailed diagnostic reports.
-
-#### Scenario: Progress has a next action
-- **WHEN** the agent sends a progress notification with remaining work
-- **THEN** the content contains a bold progress title, a concise summary, and a `**Next:**` line describing the next action
-
-#### Scenario: Completion needs no next action
-- **WHEN** the agent sends a success notification and no user action is needed
-- **THEN** the content ends after the concise summary without an empty or placeholder `Next:` line
-
 ### Requirement: Normal agent notifications require an agent session ID
 Both skills SHALL obtain the current agent session ID from their runner before normal delivery and SHALL rely on the selected message template to include that value in its metadata header. The runner SHALL prefer a non-empty `CLAUDE_CODE_SESSION_ID` supplied by Claude Code and otherwise use a non-empty `CODEX_THREAD_ID` supplied by Codex. It SHALL expose the selected value to the existing CLI template runtime without confusing it with Discord's `--thread-id` delivery option. If neither identifier is available, the skill SHALL stop the normal send and invoke bounded failure reporting instead of inventing an identifier.
 
@@ -95,18 +80,3 @@ Every `pingme` invocation prescribed by either skill SHALL run through its bundl
 #### Scenario: Send command fails
 - **WHEN** a send command explicitly selected channel `test` and exits nonzero
 - **THEN** the wrapper asks the error reporter to target `test` and then returns the send command's original status
-
-### Requirement: Error reports fall back without recursion
-The `report-error` command SHALL send a built-in, template-independent message to the requested channel when that selector resolves and delivery succeeds. If the selector is unknown or delivery to the resolved requested channel fails, it SHALL attempt the configured default channel once when that destination differs. If no channel is supplied, it SHALL use the configured default directly. Failure of the final error-report attempt SHALL be reported locally and SHALL NOT trigger another Discord report.
-
-#### Scenario: Requested alias does not exist
-- **WHEN** error reporting receives an unknown nonnumeric channel selector and a valid default channel exists
-- **THEN** it sends the short error message to the default channel
-
-#### Scenario: Requested channel is unreachable
-- **WHEN** error delivery to a resolved requested channel fails and a different default channel is configured
-- **THEN** it makes one additional delivery attempt to the default channel
-
-#### Scenario: Reporting infrastructure is unavailable
-- **WHEN** both the requested and default error-report attempts fail because configuration, credentials, or networking is unusable
-- **THEN** the command exits nonzero with a local diagnostic and does not recurse

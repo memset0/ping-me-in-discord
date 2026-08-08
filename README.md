@@ -31,37 +31,51 @@ Add `~/.local/bin` to your shell's `PATH` if necessary. The installer does not m
 
 When upgrading, the installer removes the exact legacy `notify-me-on-discord` executable only after both current entry points are installed successfully. It preserves neighboring configuration, templates, and unrelated files. Existing scripts must switch to `ping-me-in-discord` or `pingme`.
 
-## Installing the Codex skills
+## Installing the coding-agent skills
 
-The binary embeds the `$ping-me-send-message` and `$ping-me-report-agent-status` Codex skills. Installing them does not require cloning this repository, reading Discord configuration, or accessing the network.
+The binary embeds one canonical copy of the `ping-me-send-message` and `ping-me-report-agent-status` skills and can install it for either Codex or Claude Code. Installation does not require cloning this repository, reading Discord configuration, or accessing the network.
 
-To install them in the current project, first enter the project root:
+To install for Codex in the current project, enter the project root and run:
 
 ```console
 cd /path/to/your-project
-pingme skills install --scope project
+pingme skills install --scope project --agent codex
 ```
 
-This writes `.codex/skills/ping-me-send-message` and `.codex/skills/ping-me-report-agent-status` below the current directory.
+This copies regular files into `.codex/skills/ping-me-send-message` and `.codex/skills/ping-me-report-agent-status`. Omitting `--agent` also selects Codex for backward compatibility.
 
-To install them globally for the current user:
+To install for Claude Code in the current project:
 
 ```console
-pingme skills install --scope global
+pingme skills install --scope project --agent claude-code
 ```
 
-When `CODEX_HOME` is non-empty, the global destination is `${CODEX_HOME}/skills`; otherwise it is `~/.codex/skills`. Either command can be run again to refresh the CLI-owned skill files. Identical files remain unchanged, outdated or locally modified owned files are restored from the current binary, and unrelated skill directories are left untouched.
+This copies the same canonical `SKILL.md` and runner files into `.claude/skills`; Codex-only `agents/openai.yaml` metadata is omitted. `--agent claude` is accepted as a shorter alias.
 
-Upgrading from an older binary migrates the former `$discord-notify` and `$discord-agent-notify` installation. The installer removes only the three files it owned in each legacy directory; any additional files remain untouched.
+For user-global installation, select the agent explicitly:
 
-Restart or reopen Codex, or begin a new Codex session, after installation so the new skills are discovered. You can then invoke them in chat:
+```console
+pingme skills install --scope global --agent codex
+pingme skills install --scope global --agent claude-code
+```
+
+Codex global installation uses `${CODEX_HOME}/skills` when `CODEX_HOME` is non-empty and otherwise uses `~/.codex/skills`. Claude Code global installation uses `${CLAUDE_CONFIG_DIR}/skills` when `CLAUDE_CONFIG_DIR` is non-empty and otherwise uses `~/.claude/skills`.
+
+Every installed asset is an independent regular-file copy in the selected coding agent's configuration directory; the installer never creates symbolic links. Re-running a command refreshes the CLI-owned files. Identical regular files remain unchanged, while outdated, locally modified, or symbolic-link owned paths are atomically replaced from the current binary. Unrelated skill directories remain untouched.
+
+Codex upgrades migrate the former `$discord-notify` and `$discord-agent-notify` installation. The installer removes only the three files it owned in each legacy directory; any additional files remain untouched. Claude Code installation does not claim or remove those legacy paths.
+
+After creating a top-level skills directory, restart or reopen the selected agent if it does not discover the new skills immediately. Invoke the free-form message skill or the strict lifecycle-status skill as follows:
 
 ```text
+# Codex
 $ping-me-send-message
 $ping-me-report-agent-status
-```
 
-The current release installs Codex skills only; it does not yet generate Claude Code skill files.
+# Claude Code
+/ping-me-send-message
+/ping-me-report-agent-status
+```
 
 ## Initialization
 
@@ -153,7 +167,7 @@ When no template is specified, `[defaults].template` initially selects `defaults
 {{ message }}
 ```
 
-Ordinary shell invocations show the hostname and time. When Codex supplies `CODEX_THREAD_ID`, the current conversation ID is appended after the timestamp:
+Ordinary shell invocations show the hostname and time. The installed skill runner reads `CODEX_THREAD_ID` from Codex or `CLAUDE_CODE_SESSION_ID` from Claude Code and exposes that session ID to the existing template runtime, so the current coding-agent session is appended after the timestamp:
 
 ```console
 pingme 'build completed'
@@ -164,7 +178,7 @@ The first line contains the CLI host's `user@hostname` and local time, and `buil
 Every render receives a reserved `runtime` object:
 
 - `runtime.user` and `runtime.hostname`: the current system identity, falling back to `unknown-user` and `unknown-host` when unavailable.
-- `runtime.codex_thread_id`: the optional current Codex conversation ID from `CODEX_THREAD_ID`; it is normally `null` in an ordinary shell.
+- `runtime.codex_thread_id`: the optional coding-agent session ID transported through `CODEX_THREAD_ID`. The skill runner normalizes Claude Code's `CLAUDE_CODE_SESSION_ID` into this compatibility field; it is normally `null` in an ordinary shell.
 - `runtime.timestamp.local`: local machine time in `M/D HH:mm:ss` format.
 - `runtime.timestamp.unix`: Unix seconds for the same captured instant.
 - `runtime.timestamp.iso8601`: a UTC ISO 8601 representation of the same instant.
