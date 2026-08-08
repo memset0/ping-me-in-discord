@@ -251,8 +251,8 @@ MiniJinja 使用严格 undefined 模式：
 
 ```console
 pingme 'hello'
-notify-me-on-discord send 'deployed' --template release --var version=v1.2.3
-notify-me-on-discord send --template alert --data alert.json --var severity=critical
+ping-me-in-discord send 'deployed' --template release --var version=v1.2.3
+ping-me-in-discord send --template alert --data alert.json --var severity=critical
 ```
 
 ## Agent 状态头像 profile

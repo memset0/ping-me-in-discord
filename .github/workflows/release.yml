@@ -89,7 +89,7 @@ jobs:
         run: |
           archive="ping-me-in-discord-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz"
           mkdir -p dist stage
-          cp "target/${{ matrix.target }}/release/notify-me-on-discord" stage/
+          cp "target/${{ matrix.target }}/release/ping-me-in-discord" stage/
           cp "target/${{ matrix.target }}/release/pingme" stage/
           cp README.md THIRD_PARTY_NOTICES.md stage/
           tar -czf "dist/${archive}" -C stage .
@@ -105,7 +105,7 @@ jobs:
         run: |
           $archive = "ping-me-in-discord-${env:GITHUB_REF_NAME}-${{ matrix.target }}.zip"
           New-Item -ItemType Directory -Force dist, stage | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/notify-me-on-discord.exe" stage/
+          Copy-Item "target/${{ matrix.target }}/release/ping-me-in-discord.exe" stage/
           Copy-Item "target/${{ matrix.target }}/release/pingme.exe" stage/
           Copy-Item README.md, THIRD_PARTY_NOTICES.md stage/
           Compress-Archive -Path stage/* -DestinationPath "dist/$archive"

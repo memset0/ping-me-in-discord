@@ -119,7 +119,7 @@ fi
 
 mkdir -p "${notify_temp_dir}/unpacked"
 tar -xzf "${notify_temp_dir}/${notify_archive}" -C "${notify_temp_dir}/unpacked"
-for notify_binary in notify-me-on-discord pingme; do
+for notify_binary in ping-me-in-discord pingme; do
     if [ ! -f "${notify_temp_dir}/unpacked/${notify_binary}" ]; then
         printf 'error: release archive does not contain %s\n' "$notify_binary" >&2
         exit 1
@@ -128,12 +128,18 @@ for notify_binary in notify-me-on-discord pingme; do
 done
 
 mkdir -p "$notify_install_dir"
-for notify_binary in notify-me-on-discord pingme; do
+for notify_binary in ping-me-in-discord pingme; do
     notify_temporary_destination="${notify_install_dir}/.${notify_binary}.tmp.$$"
     cp "${notify_temp_dir}/unpacked/${notify_binary}" "$notify_temporary_destination"
     chmod 755 "$notify_temporary_destination"
     mv -f "$notify_temporary_destination" "${notify_install_dir}/${notify_binary}"
 done
+
+notify_legacy_binary="${notify_install_dir}/notify-me-on-discord"
+if [ -e "$notify_legacy_binary" ] || [ -L "$notify_legacy_binary" ]; then
+    rm -- "$notify_legacy_binary"
+    printf 'Removed legacy executable %s\n' "$notify_legacy_binary"
+fi
 
 printf 'Installed ping-me-in-discord %s to %s\n' "$notify_tag" "$notify_install_dir"
 case ":${PATH:-}:" in
@@ -142,4 +148,4 @@ case ":${PATH:-}:" in
         printf 'Add %s to PATH, then run: pingme --help\n' "$notify_install_dir"
         ;;
 esac
-printf '%s\n' "Initialize portable files with: notify-me-on-discord init --portable"
+printf '%s\n' "Initialize portable files with: ping-me-in-discord init --portable"

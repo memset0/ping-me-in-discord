@@ -199,7 +199,7 @@ fn global_install_honors_codex_home_without_configuration_or_source_checkout() {
     let codex_home = root.path().join("custom-codex-home");
     fs::create_dir(&empty_working_directory).unwrap();
 
-    let mut command = cargo_bin_cmd!("notify-me-on-discord");
+    let mut command = cargo_bin_cmd!("ping-me-in-discord");
     command
         .current_dir(&empty_working_directory)
         .env("CODEX_HOME", &codex_home)

@@ -1,4 +1,4 @@
-# Copy this file beside notify-me-on-discord and rename it to config.toml.
+# Copy this file beside ping-me-in-discord and rename it to config.toml.
 
 [discord]
 # webhook_url = "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"

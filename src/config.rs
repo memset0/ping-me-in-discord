@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::paths::{CONFIG_FILE, UserDirs};
 
-pub const STARTER_CONFIG: &str = r##"# notify-me-on-discord configuration
+pub const STARTER_CONFIG: &str = r##"# ping-me-in-discord configuration
 #
 [discord]
 # Prefer a direct incoming webhook URL for the smallest possible credential:

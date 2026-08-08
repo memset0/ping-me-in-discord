@@ -1,10 +1,4 @@
-# user-installation-and-releases Specification
-
-## Purpose
-
-Define reproducible standalone releases and a no-root installation experience centered on common Linux user-directory conventions.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Linux installation does not require root
 The Unix installer SHALL place `ping-me-in-discord` in `$DISCORD_NOTIFICATION_INSTALL_DIR` when set and otherwise in `~/.local/bin`, and SHALL install `pingme` as an equivalent entry point. It SHALL create the target directory as the current user and SHALL never invoke `sudo` or write to system directories by default. After both current entry points are installed successfully, an upgrade SHALL remove only the exact legacy `notify-me-on-discord` path in the same installation directory when it exists.
@@ -49,24 +43,3 @@ Project-facing package metadata, documentation links, the installer's default Gi
 #### Scenario: Existing commands and configuration remain valid
 - **WHEN** a user upgrades from the former project identity or executable name
 - **THEN** `pingme` remains valid, `ping-me-in-discord` replaces the former long entry point, and both commands continue to discover existing configuration below the `discord-notification` application directories
-
-### Requirement: Release assets are integrity-checkable
-Every release archive SHALL have a SHA-256 checksum, and the installer SHALL verify the matching checksum before replacing an installed binary.
-
-#### Scenario: Checksum mismatch
-- **WHEN** a downloaded archive does not match its published checksum
-- **THEN** installation fails and the existing executable remains unchanged
-
-### Requirement: Release builds are gated by quality checks
-Release automation SHALL run formatting checks, compilation checks, lints, and tests before publishing assets.
-
-#### Scenario: Tests fail on a release tag
-- **WHEN** any required quality check fails
-- **THEN** the workflow does not publish a completed release
-
-### Requirement: The installed binary can initialize its companion files
-After installation, users SHALL be able to create either the executable-adjacent `config.toml` and `templates/defaults.md` layout or an XDG user layout using the binary itself.
-
-#### Scenario: First-time portable setup
-- **WHEN** a user invokes the portable initialization command after installation
-- **THEN** the binary creates the companion files without requiring root access

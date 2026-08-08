@@ -4,7 +4,7 @@
 
 ```console
 pingme 'message content'
-notify-me-on-discord 'message content'
+ping-me-in-discord 'message content'
 ```
 
 By default, the text becomes the `message` variable for `templates/defaults.md` beside the binary and is sent to the configured Discord channel. The template, channel, username, and avatar can all be overridden for an individual invocation.
@@ -21,13 +21,15 @@ less /tmp/ping-me-in-discord-install.sh
 sh /tmp/ping-me-in-discord-install.sh
 ```
 
-The installer places both `notify-me-on-discord` and `pingme` in `~/.local/bin` by default. Set `DISCORD_NOTIFICATION_INSTALL_DIR` to choose another user-owned directory:
+The installer places both `ping-me-in-discord` and `pingme` in `~/.local/bin` by default. Set `DISCORD_NOTIFICATION_INSTALL_DIR` to choose another user-owned directory:
 
 ```console
 DISCORD_NOTIFICATION_INSTALL_DIR="$HOME/bin" sh /tmp/ping-me-in-discord-install.sh
 ```
 
 Add `~/.local/bin` to your shell's `PATH` if necessary. The installer does not modify shell configuration.
+
+When upgrading, the installer removes the exact legacy `notify-me-on-discord` executable only after both current entry points are installed successfully. It preserves neighboring configuration, templates, and unrelated files. Existing scripts must switch to `ping-me-in-discord` or `pingme`.
 
 ## Installing the Codex skills
 
@@ -66,13 +68,13 @@ The current release installs Codex skills only; it does not yet generate Claude 
 Portable mode places `config.toml` and `templates/defaults.md` beside the binary:
 
 ```console
-notify-me-on-discord init --portable
+ping-me-in-discord init --portable
 ```
 
 Standard user mode follows platform directory conventions. On Linux, configuration is written below `~/.config/discord-notification`, while runtime state and the emoji cache live below `~/.local/share/discord-notification`:
 
 ```console
-notify-me-on-discord init
+ping-me-in-discord init
 ```
 
 Configuration lookup uses this precedence:
@@ -85,8 +87,8 @@ Configuration lookup uses this precedence:
 Inspect the selected path and validate configuration offline with:
 
 ```console
-notify-me-on-discord config path
-notify-me-on-discord config validate
+ping-me-in-discord config path
+ping-me-in-discord config validate
 pingme channels list --json
 pingme avatar list --json
 ```
@@ -186,7 +188,7 @@ Triggered by **{{ actor }}**.
 Send a named template with variables:
 
 ```console
-notify-me-on-discord send \
+ping-me-in-discord send \
   --template deployment \
   --var project=API \
   --var version=v1.2.3 \
@@ -197,13 +199,13 @@ notify-me-on-discord send \
 Variables can also come from a JSON object. Repeated `--var` arguments have the highest precedence:
 
 ```console
-notify-me-on-discord send --template deployment --data event.json --var actor=manual
+ping-me-in-discord send --template deployment --data event.json --var actor=manual
 ```
 
 Inspect templates and the final payload without delivery:
 
 ```console
-notify-me-on-discord templates list
+ping-me-in-discord templates list
 pingme 'preview only' --dry-run
 ```
 
@@ -260,7 +262,7 @@ pingme avatar list --json
 Preview a local or generated avatar:
 
 ```console
-notify-me-on-discord avatar preview rocket --output rocket.png
+ping-me-in-discord avatar preview rocket --output rocket.png
 ```
 
 You can also define an avatar for one invocation:

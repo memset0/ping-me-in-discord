@@ -150,7 +150,7 @@ fn one_off_emoji_foreground_is_accepted_in_dry_run() {
 #[test]
 fn long_binary_name_supports_the_same_shorthand() {
     let (_root, config) = portable_fixture();
-    let mut command = cargo_bin_cmd!("notify-me-on-discord");
+    let mut command = cargo_bin_cmd!("ping-me-in-discord");
     command
         .args(["--config", &config_argument(&config), "hello", "--dry-run"])
         .assert()
@@ -174,7 +174,7 @@ embeds:
     )
     .unwrap();
 
-    let mut command = cargo_bin_cmd!("notify-me-on-discord");
+    let mut command = cargo_bin_cmd!("ping-me-in-discord");
     command
         .args([
             "--config",
@@ -199,14 +199,14 @@ fn configuration_validation_and_template_listing_work_offline() {
     let (_root, config) = portable_fixture();
     let config_value = config_argument(&config);
 
-    let mut validate = cargo_bin_cmd!("notify-me-on-discord");
+    let mut validate = cargo_bin_cmd!("ping-me-in-discord");
     validate
         .args(["--config", &config_value, "config", "validate"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Configuration is valid"));
 
-    let mut list = cargo_bin_cmd!("notify-me-on-discord");
+    let mut list = cargo_bin_cmd!("ping-me-in-discord");
     list.args(["--config", &config_value, "templates", "list"])
         .assert()
         .success()

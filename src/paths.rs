@@ -69,7 +69,7 @@ pub fn discover_config_from(input: DiscoveryInput) -> Result<PathBuf> {
         .join(CONFIG_FILE);
     let user = input.user_dirs.config_dir.join(CONFIG_FILE);
     bail!(
-        "no configuration found; looked for {} and {} (run `notify-me-on-discord init` or `notify-me-on-discord init --portable`)",
+        "no configuration found; looked for {} and {} (run `ping-me-in-discord init` or `ping-me-in-discord init --portable`)",
         portable.display(),
         user.display()
     )
@@ -100,7 +100,7 @@ mod tests {
         DiscoveryInput {
             explicit: None,
             environment: None,
-            executable: root.path().join("bin/notify-me-on-discord"),
+            executable: root.path().join("bin/ping-me-in-discord"),
             user_dirs: UserDirs {
                 config_dir: root.path().join("xdg-config/discord-notification"),
                 data_dir: root.path().join("xdg-data/discord-notification"),

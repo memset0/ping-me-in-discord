@@ -15,7 +15,7 @@
 - `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
 
-每个 archive 使用 `ping-me-in-discord-<tag>-<target>` 作为名称，包含 `notify-me-on-discord`、`pingme`、README 和第三方声明，并带有同名 `.sha256` 文件。
+每个 archive 使用 `ping-me-in-discord-<tag>-<target>` 作为名称，包含 `ping-me-in-discord`、`pingme`、README 和第三方声明，并带有同名 `.sha256` 文件。
 
 ## 创建 release
 
@@ -44,7 +44,8 @@ musl x86_64 和 ARM64 失败会阻止发布；GNU/Linux、macOS 和 Windows 是 
 - 从 GitHub latest release 或 `DISCORD_NOTIFICATION_VERSION` 下载。
 - 在替换现有二进制前验证 SHA-256。
 - 默认写入 `~/.local/bin`，从不调用 `sudo`。
-- 只替换两个二进制，不修改 `config.toml`、`templates/` 或用户 data。
+- 安装两个当前二进制成功后，仅删除同一目录下精确匹配的旧 `notify-me-on-discord` 可执行文件。
+- 不修改 `config.toml`、`templates/`、用户 data 或其他相邻文件。
 
 可用于测试 target detection：
 
