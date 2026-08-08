@@ -1,4 +1,0 @@
-interface:
-  display_name: "Discord Notify"
-  short_description: "Send flexible Discord notifications safely"
-  default_prompt: "Use $discord-notify to send this update to my configured Discord channel."

@@ -1,16 +1,16 @@
 [package]
-name = "notify-me-on-discord"
+name = "ping-me-in-discord"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.87"
 description = "Send templated Discord webhook notifications from the command line"
-repository = "https://github.com/memset0/discord-notification"
+repository = "https://github.com/memset0/ping-me-in-discord"
 keywords = ["cli", "discord", "notification", "webhook"]
 categories = ["command-line-utilities"]
 publish = false
 
 [lib]
-name = "notify_me_on_discord"
+name = "ping_me_in_discord"
 path = "src/lib.rs"
 
 [[bin]]

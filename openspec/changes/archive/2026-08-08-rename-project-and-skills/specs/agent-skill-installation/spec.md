@@ -1,29 +1,4 @@
-# agent-skill-installation Specification
-
-## Purpose
-
-Allow users to install or refresh the notification skills bundled with the CLI at a predictable Codex project or user-global location without cloning the source repository.
-
-## Requirements
-
-### Requirement: Skill installation requires an explicit scope
-The CLI SHALL provide `skills install --scope <project|global>`. Project scope SHALL install below `.codex/skills` in the current working directory. Global scope SHALL install below the `skills` directory of a non-empty `CODEX_HOME`, falling back to `.codex/skills` in the current user's home directory when that environment variable is absent. The command SHALL fail with an actionable diagnostic when it cannot resolve or create the selected destination.
-
-#### Scenario: Install into the current project
-- **WHEN** a user runs `pingme skills install --scope project` from a project root
-- **THEN** the bundled skills are installed below that directory's `.codex/skills`
-
-#### Scenario: Install into an overridden global home
-- **WHEN** a user runs `pingme skills install --scope global` with a non-empty `CODEX_HOME`
-- **THEN** the bundled skills are installed below `${CODEX_HOME}/skills`
-
-#### Scenario: Install into the default global home
-- **WHEN** global scope is selected without `CODEX_HOME` and the user's home directory is available
-- **THEN** the bundled skills are installed below `~/.codex/skills`
-
-#### Scenario: Scope is omitted
-- **WHEN** a user runs `pingme skills install` without `--scope`
-- **THEN** argument parsing fails without writing any skill files
+## MODIFIED Requirements
 
 ### Requirement: Release binaries contain complete Codex skills
 The installed binary SHALL carry the `ping-me-send-message` and `ping-me-report-agent-status` skill assets needed for standalone installation. Each installed skill SHALL contain its `SKILL.md`, `agents/openai.yaml`, and `scripts/run-pingme.sh`; the runner SHALL be executable on Unix. Installing the skills SHALL not require Git, network access, a package manager, or a source checkout.

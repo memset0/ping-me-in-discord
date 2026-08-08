@@ -15,7 +15,7 @@
 - `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
 
-每个 archive 包含 `notify-me-on-discord`、`pingme`、README 和第三方声明，并带有同名 `.sha256` 文件。
+每个 archive 使用 `ping-me-in-discord-<tag>-<target>` 作为名称，包含 `notify-me-on-discord`、`pingme`、README 和第三方声明，并带有同名 `.sha256` 文件。
 
 ## 创建 release
 

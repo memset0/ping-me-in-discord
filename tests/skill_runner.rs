@@ -11,15 +11,15 @@ use tempfile::TempDir;
 
 const SIMPLE_RUNNER: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/.codex/skills/discord-notify/scripts/run-pingme.sh"
+    "/.codex/skills/ping-me-send-message/scripts/run-pingme.sh"
 );
 const STRICT_RUNNER: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/.codex/skills/discord-agent-notify/scripts/run-pingme.sh"
+    "/.codex/skills/ping-me-report-agent-status/scripts/run-pingme.sh"
 );
 const STRICT_SKILL: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/.codex/skills/discord-agent-notify/SKILL.md"
+    "/.codex/skills/ping-me-report-agent-status/SKILL.md"
 );
 
 fn fake_pingme(root: &Path) -> (PathBuf, PathBuf) {
@@ -90,6 +90,23 @@ fn strict_skill_selects_configured_status_profiles_without_visual_fields() {
             "strict skill must not contain visual argument `{forbidden}`"
         );
     }
+}
+
+#[test]
+fn strict_skill_keeps_the_nested_example_inside_its_gfm_fence() {
+    let skill = fs::read_to_string(STRICT_SKILL).unwrap();
+    let opening = skill.find("   ```bash\n").unwrap();
+    let example = &skill[opening + "   ```bash\n".len()..];
+    let closing = example.find("\n   ```\n").unwrap();
+
+    for line in example[..closing].lines() {
+        assert!(
+            line.starts_with("   "),
+            "nested GFM example line lost list indentation: {line:?}"
+        );
+    }
+    assert!(example[closing..].starts_with("\n   ```\n\n7. Inspect"));
+    assert!(skill.find("7. Inspect").unwrap() < skill.find("## Failure rules").unwrap());
 }
 
 #[test]

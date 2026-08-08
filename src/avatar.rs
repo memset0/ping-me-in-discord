@@ -48,7 +48,11 @@ impl AvatarRenderer {
     pub fn new() -> Result<Self> {
         Ok(Self {
             http: reqwest::Client::builder()
-                .user_agent(concat!("notify-me-on-discord/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!(
+                    env!("CARGO_PKG_NAME"),
+                    "/",
+                    env!("CARGO_PKG_VERSION")
+                ))
                 .build()
                 .context("could not initialize the avatar HTTP client")?,
         })

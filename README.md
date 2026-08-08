@@ -1,6 +1,6 @@
-# notify-me-on-discord
+# ping-me-in-discord
 
-A Rust CLI for sending Discord notifications. It renders Markdown templates into Discord webhook messages and provides two equivalent entry points:
+`ping-me-in-discord` is a Rust CLI project for sending Discord notifications. It renders Markdown templates into Discord webhook messages and retains two equivalent command-line entry points:
 
 ```console
 pingme 'message content'
@@ -15,23 +15,23 @@ Releases provide prebuilt binaries, so end users need neither Rust nor root acce
 
 ```console
 curl --proto '=https' --tlsv1.2 -fsSL \
-  https://raw.githubusercontent.com/memset0/discord-notification/master/install.sh \
-  -o /tmp/notify-me-on-discord-install.sh
-less /tmp/notify-me-on-discord-install.sh
-sh /tmp/notify-me-on-discord-install.sh
+  https://raw.githubusercontent.com/memset0/ping-me-in-discord/master/install.sh \
+  -o /tmp/ping-me-in-discord-install.sh
+less /tmp/ping-me-in-discord-install.sh
+sh /tmp/ping-me-in-discord-install.sh
 ```
 
 The installer places both `notify-me-on-discord` and `pingme` in `~/.local/bin` by default. Set `DISCORD_NOTIFICATION_INSTALL_DIR` to choose another user-owned directory:
 
 ```console
-DISCORD_NOTIFICATION_INSTALL_DIR="$HOME/bin" sh /tmp/notify-me-on-discord-install.sh
+DISCORD_NOTIFICATION_INSTALL_DIR="$HOME/bin" sh /tmp/ping-me-in-discord-install.sh
 ```
 
 Add `~/.local/bin` to your shell's `PATH` if necessary. The installer does not modify shell configuration.
 
 ## Installing the Codex skills
 
-The binary embeds the `$discord-notify` and `$discord-agent-notify` Codex skills. Installing them does not require cloning this repository, reading Discord configuration, or accessing the network.
+The binary embeds the `$ping-me-send-message` and `$ping-me-report-agent-status` Codex skills. Installing them does not require cloning this repository, reading Discord configuration, or accessing the network.
 
 To install them in the current project, first enter the project root:
 
@@ -40,7 +40,7 @@ cd /path/to/your-project
 pingme skills install --scope project
 ```
 
-This writes `.codex/skills/discord-notify` and `.codex/skills/discord-agent-notify` below the current directory.
+This writes `.codex/skills/ping-me-send-message` and `.codex/skills/ping-me-report-agent-status` below the current directory.
 
 To install them globally for the current user:
 
@@ -50,11 +50,13 @@ pingme skills install --scope global
 
 When `CODEX_HOME` is non-empty, the global destination is `${CODEX_HOME}/skills`; otherwise it is `~/.codex/skills`. Either command can be run again to refresh the CLI-owned skill files. Identical files remain unchanged, outdated or locally modified owned files are restored from the current binary, and unrelated skill directories are left untouched.
 
+Upgrading from an older binary migrates the former `$discord-notify` and `$discord-agent-notify` installation. The installer removes only the three files it owned in each legacy directory; any additional files remain untouched.
+
 Restart or reopen Codex, or begin a new Codex session, after installation so the new skills are discovered. You can then invoke them in chat:
 
 ```text
-$discord-notify
-$discord-agent-notify
+$ping-me-send-message
+$ping-me-report-agent-status
 ```
 
 The current release installs Codex skills only; it does not yet generate Claude Code skill files.
@@ -279,10 +281,10 @@ When every configuration layer omits an avatar, the CLI always uses the base web
 
 ## Codex agent notification skills
 
-The project provides two initial Codex skills:
+The project provides two Codex skills with intentionally separate responsibilities:
 
-- `$discord-notify`: freely formats Discord Markdown after using JSON commands to select a configured channel and optional avatar profile.
-- `$discord-agent-notify`: strictly selects `started`, `progress`, `success`, `needs-input`, `warning`, or `error` and passes the same-named configured profile. The skill does not contain emoji, color, or scale settings.
+- `$ping-me-send-message`: sends intentional free-form Discord Markdown after using JSON commands to select a configured channel and optional avatar profile. It is not used merely to report an agent lifecycle state.
+- `$ping-me-report-agent-status`: reports exactly one of `started`, `progress`, `success`, `needs-input`, `warning`, or `error` and passes the same-named configured profile. It does not handle arbitrary messages or custom avatar selection, and it contains no emoji, color, or scale settings.
 
 Both skills read `CODEX_THREAD_ID`, dry-run the message, and verify that the local template rendered the exact ID before performing the live send. Every CLI call runs through the skill's `scripts/run-pingme.sh`; after a wrapped command fails, the runner makes exactly one short error-report attempt and preserves the original exit status.
 

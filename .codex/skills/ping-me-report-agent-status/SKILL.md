@@ -1,11 +1,11 @@
 ---
-name: discord-agent-notify
-description: Send structured Codex agent lifecycle notifications through the local pingme CLI using fixed started, progress, success, needs-input, warning, or error presentation, same-named configured avatar profiles, the selected or default Discord channel, and the current Codex thread ID. Use when an agent must report work status on Discord with a strict compact format and bounded failure reporting.
+name: ping-me-report-agent-status
+description: Report one structured Codex agent lifecycle status through the local pingme CLI using fixed started, progress, success, needs-input, warning, or error presentation, same-named configured avatar profiles, the selected or default Discord channel, and the current Codex thread ID. Use only when an agent must report one of those lifecycle states with the strict compact format and bounded failure reporting. Do not use for arbitrary Discord content or custom avatar selection; use ping-me-send-message instead.
 ---
 
-# Discord Agent Notify
+# Ping Me: Report Agent Status
 
-Send a compact, policy-driven agent status notification. Select the fixed same-named configured avatar profile without querying or reproducing its visual settings.
+Report exactly one compact, policy-driven agent lifecycle status. Select the fixed same-named configured avatar profile without querying or reproducing its visual settings. For arbitrary messages or custom avatar choices, stop and use `ping-me-send-message` instead.
 
 ## Status policy
 
@@ -42,10 +42,12 @@ Omit the `Next:` line when no action is useful. Do not add headings, tables, bla
 6. Dry-run the exact invocation through the runner. Example for a successful test-channel notification:
 
    ```bash
+   message=$(printf '%s\n%s' \
+     '**✅ Initial skill is ready**' \
+     'The Codex notification workflow passed local verification.')
    /absolute/path/to/run-pingme.sh --error-channel test -- \
      --channel test --avatar success --dry-run \
-     '**✅ Initial skill is ready**
-The Codex notification workflow passed local verification.'
+     "$message"
    ```
 
 7. Inspect the rendered JSON and require its `content` to contain the exact `CODEX_THREAD_ID`. If absent, use `--report-only` for the selected channel and stop.

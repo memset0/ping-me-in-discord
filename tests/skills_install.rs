@@ -6,29 +6,38 @@ use tempfile::TempDir;
 
 const BUNDLED_FILES: &[(&str, &[u8])] = &[
     (
-        "discord-notify/SKILL.md",
-        include_bytes!("../.codex/skills/discord-notify/SKILL.md"),
+        "ping-me-send-message/SKILL.md",
+        include_bytes!("../.codex/skills/ping-me-send-message/SKILL.md"),
     ),
     (
-        "discord-notify/agents/openai.yaml",
-        include_bytes!("../.codex/skills/discord-notify/agents/openai.yaml"),
+        "ping-me-send-message/agents/openai.yaml",
+        include_bytes!("../.codex/skills/ping-me-send-message/agents/openai.yaml"),
     ),
     (
-        "discord-notify/scripts/run-pingme.sh",
-        include_bytes!("../.codex/skills/discord-notify/scripts/run-pingme.sh"),
+        "ping-me-send-message/scripts/run-pingme.sh",
+        include_bytes!("../.codex/skills/ping-me-send-message/scripts/run-pingme.sh"),
     ),
     (
-        "discord-agent-notify/SKILL.md",
-        include_bytes!("../.codex/skills/discord-agent-notify/SKILL.md"),
+        "ping-me-report-agent-status/SKILL.md",
+        include_bytes!("../.codex/skills/ping-me-report-agent-status/SKILL.md"),
     ),
     (
-        "discord-agent-notify/agents/openai.yaml",
-        include_bytes!("../.codex/skills/discord-agent-notify/agents/openai.yaml"),
+        "ping-me-report-agent-status/agents/openai.yaml",
+        include_bytes!("../.codex/skills/ping-me-report-agent-status/agents/openai.yaml"),
     ),
     (
-        "discord-agent-notify/scripts/run-pingme.sh",
-        include_bytes!("../.codex/skills/discord-agent-notify/scripts/run-pingme.sh"),
+        "ping-me-report-agent-status/scripts/run-pingme.sh",
+        include_bytes!("../.codex/skills/ping-me-report-agent-status/scripts/run-pingme.sh"),
     ),
+];
+
+const LEGACY_OWNED_FILES: &[&str] = &[
+    "discord-notify/SKILL.md",
+    "discord-notify/agents/openai.yaml",
+    "discord-notify/scripts/run-pingme.sh",
+    "discord-agent-notify/SKILL.md",
+    "discord-agent-notify/agents/openai.yaml",
+    "discord-agent-notify/scripts/run-pingme.sh",
 ];
 
 fn assert_bundled_files(destination: &Path) {
@@ -60,8 +69,9 @@ fn project_install_is_complete_repeatable_and_narrowly_owned() {
         .stdout(predicate::str::contains(
             "6 created, 0 updated, 0 unchanged",
         ))
-        .stdout(predicate::str::contains("$discord-notify"))
-        .stdout(predicate::str::contains("$discord-agent-notify"));
+        .stdout(predicate::str::contains("Legacy files: 0 removed"))
+        .stdout(predicate::str::contains("$ping-me-send-message"))
+        .stdout(predicate::str::contains("$ping-me-report-agent-status"));
 
     assert_bundled_files(&destination);
     assert_eq!(fs::read_to_string(&unrelated).unwrap(), "keep me");
@@ -70,7 +80,7 @@ fn project_install_is_complete_repeatable_and_narrowly_owned() {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let runner = destination.join("discord-notify/scripts/run-pingme.sh");
+        let runner = destination.join("ping-me-send-message/scripts/run-pingme.sh");
         fs::set_permissions(&runner, fs::Permissions::from_mode(0o644)).unwrap();
         let mut repair_permissions = cargo_bin_cmd!("pingme");
         repair_permissions
@@ -99,7 +109,11 @@ fn project_install_is_complete_repeatable_and_narrowly_owned() {
             "0 created, 0 updated, 6 unchanged",
         ));
 
-    fs::write(destination.join("discord-notify/SKILL.md"), "outdated").unwrap();
+    fs::write(
+        destination.join("ping-me-send-message/SKILL.md"),
+        "outdated",
+    )
+    .unwrap();
     let mut refresh = cargo_bin_cmd!("pingme");
     refresh
         .current_dir(project.path())
@@ -118,7 +132,7 @@ fn project_install_is_complete_repeatable_and_narrowly_owned() {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        for skill in ["discord-notify", "discord-agent-notify"] {
+        for skill in ["ping-me-send-message", "ping-me-report-agent-status"] {
             let mode = fs::metadata(destination.join(skill).join("scripts/run-pingme.sh"))
                 .unwrap()
                 .permissions()
@@ -126,6 +140,56 @@ fn project_install_is_complete_repeatable_and_narrowly_owned() {
             assert_ne!(mode & 0o111, 0, "runner is not executable: {skill}");
         }
     }
+}
+
+#[test]
+fn project_install_migrates_legacy_owned_files_without_removing_extras() {
+    let project = TempDir::new().unwrap();
+    let destination = project.path().join(".codex/skills");
+    let legacy_extra = destination.join("discord-notify/references/keep.md");
+    let unrelated = destination.join("third-party/SKILL.md");
+    fs::create_dir_all(legacy_extra.parent().unwrap()).unwrap();
+    fs::create_dir_all(unrelated.parent().unwrap()).unwrap();
+    fs::write(&legacy_extra, "legacy extra").unwrap();
+    fs::write(&unrelated, "third party").unwrap();
+
+    for relative in LEGACY_OWNED_FILES {
+        let path = destination.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "legacy owned").unwrap();
+    }
+
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .current_dir(project.path())
+        .env_remove("DISCORD_NOTIFICATION_CONFIG")
+        .args(["skills", "install", "--scope", "project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "6 created, 0 updated, 0 unchanged",
+        ))
+        .stdout(predicate::str::contains("Legacy files: 6 removed"));
+
+    assert_bundled_files(&destination);
+    assert_eq!(fs::read_to_string(legacy_extra).unwrap(), "legacy extra");
+    assert_eq!(fs::read_to_string(unrelated).unwrap(), "third party");
+    for relative in LEGACY_OWNED_FILES {
+        assert!(!destination.join(relative).exists());
+    }
+    assert!(!destination.join("discord-agent-notify").exists());
+
+    let mut repeat = cargo_bin_cmd!("pingme");
+    repeat
+        .current_dir(project.path())
+        .env_remove("DISCORD_NOTIFICATION_CONFIG")
+        .args(["skills", "install", "--scope", "project"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "0 created, 0 updated, 6 unchanged",
+        ))
+        .stdout(predicate::str::contains("Legacy files: 0 removed"));
 }
 
 #[test]

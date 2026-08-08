@@ -104,7 +104,11 @@ pub struct DiscordClient {
 impl DiscordClient {
     pub fn new() -> Result<Self> {
         let http = reqwest::Client::builder()
-            .user_agent(concat!("notify-me-on-discord/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!(
+                env!("CARGO_PKG_NAME"),
+                "/",
+                env!("CARGO_PKG_VERSION")
+            ))
             .timeout(Duration::from_secs(30))
             .build()
             .context("could not initialize the HTTP client")?;

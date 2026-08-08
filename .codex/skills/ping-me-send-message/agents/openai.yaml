@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ping Me: Send Message"
+  short_description: "Send a free-form Discord message safely"
+  default_prompt: "Use $ping-me-send-message to send this message to my configured Discord channel."

@@ -36,6 +36,7 @@ pub struct InstallSummary {
     pub created: usize,
     pub updated: usize,
     pub unchanged: usize,
+    pub removed_legacy: usize,
 }
 
 struct BundledFile {
@@ -46,35 +47,55 @@ struct BundledFile {
 
 const BUNDLED_FILES: &[BundledFile] = &[
     BundledFile {
-        relative_path: "discord-notify/SKILL.md",
-        contents: include_bytes!("../.codex/skills/discord-notify/SKILL.md"),
+        relative_path: "ping-me-send-message/SKILL.md",
+        contents: include_bytes!("../.codex/skills/ping-me-send-message/SKILL.md"),
         executable: false,
     },
     BundledFile {
-        relative_path: "discord-notify/agents/openai.yaml",
-        contents: include_bytes!("../.codex/skills/discord-notify/agents/openai.yaml"),
+        relative_path: "ping-me-send-message/agents/openai.yaml",
+        contents: include_bytes!("../.codex/skills/ping-me-send-message/agents/openai.yaml"),
         executable: false,
     },
     BundledFile {
-        relative_path: "discord-notify/scripts/run-pingme.sh",
-        contents: include_bytes!("../.codex/skills/discord-notify/scripts/run-pingme.sh"),
+        relative_path: "ping-me-send-message/scripts/run-pingme.sh",
+        contents: include_bytes!("../.codex/skills/ping-me-send-message/scripts/run-pingme.sh"),
         executable: true,
     },
     BundledFile {
-        relative_path: "discord-agent-notify/SKILL.md",
-        contents: include_bytes!("../.codex/skills/discord-agent-notify/SKILL.md"),
+        relative_path: "ping-me-report-agent-status/SKILL.md",
+        contents: include_bytes!("../.codex/skills/ping-me-report-agent-status/SKILL.md"),
         executable: false,
     },
     BundledFile {
-        relative_path: "discord-agent-notify/agents/openai.yaml",
-        contents: include_bytes!("../.codex/skills/discord-agent-notify/agents/openai.yaml"),
+        relative_path: "ping-me-report-agent-status/agents/openai.yaml",
+        contents: include_bytes!("../.codex/skills/ping-me-report-agent-status/agents/openai.yaml"),
         executable: false,
     },
     BundledFile {
-        relative_path: "discord-agent-notify/scripts/run-pingme.sh",
-        contents: include_bytes!("../.codex/skills/discord-agent-notify/scripts/run-pingme.sh"),
+        relative_path: "ping-me-report-agent-status/scripts/run-pingme.sh",
+        contents: include_bytes!(
+            "../.codex/skills/ping-me-report-agent-status/scripts/run-pingme.sh"
+        ),
         executable: true,
     },
+];
+
+const LEGACY_OWNED_FILES: &[&str] = &[
+    "discord-notify/SKILL.md",
+    "discord-notify/agents/openai.yaml",
+    "discord-notify/scripts/run-pingme.sh",
+    "discord-agent-notify/SKILL.md",
+    "discord-agent-notify/agents/openai.yaml",
+    "discord-agent-notify/scripts/run-pingme.sh",
+];
+
+const LEGACY_DIRECTORIES_DEEPEST_FIRST: &[&str] = &[
+    "discord-notify/agents",
+    "discord-notify/scripts",
+    "discord-notify",
+    "discord-agent-notify/agents",
+    "discord-agent-notify/scripts",
+    "discord-agent-notify",
 ];
 
 pub fn install(scope: SkillScope) -> Result<InstallSummary> {
@@ -126,6 +147,7 @@ fn install_into(scope: SkillScope, destination: PathBuf) -> Result<InstallSummar
         created: 0,
         updated: 0,
         unchanged: 0,
+        removed_legacy: 0,
     };
 
     for bundled in BUNDLED_FILES {
@@ -158,7 +180,48 @@ fn install_into(scope: SkillScope, destination: PathBuf) -> Result<InstallSummar
         }
     }
 
+    summary.removed_legacy = remove_legacy_owned_files(&summary.destination)?;
+
     Ok(summary)
+}
+
+fn remove_legacy_owned_files(destination: &Path) -> Result<usize> {
+    let mut removed = 0;
+
+    for relative_path in LEGACY_OWNED_FILES {
+        let target = destination.join(relative_path);
+        match fs::remove_file(&target) {
+            Ok(()) => removed += 1,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!("could not remove legacy skill file {}", target.display())
+                });
+            }
+        }
+    }
+
+    for relative_path in LEGACY_DIRECTORIES_DEEPEST_FIRST {
+        let target = destination.join(relative_path);
+        match fs::remove_dir(&target) {
+            Ok(()) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::DirectoryNotEmpty
+                ) => {}
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "could not remove empty legacy skill directory {}",
+                        target.display()
+                    )
+                });
+            }
+        }
+    }
+
+    Ok(removed)
 }
 
 fn write_atomically(target: &Path, contents: &[u8], executable: bool) -> Result<()> {
@@ -283,7 +346,10 @@ pub fn print_summary(summary: &InstallSummary) {
         "Files: {} created, {} updated, {} unchanged",
         summary.created, summary.updated, summary.unchanged
     );
-    println!("Restart or reopen Codex to load $discord-notify and $discord-agent-notify.");
+    println!("Legacy files: {} removed", summary.removed_legacy);
+    println!(
+        "Restart or reopen Codex to load $ping-me-send-message and $ping-me-report-agent-status."
+    );
 }
 
 #[cfg(test)]
@@ -343,17 +409,65 @@ mod tests {
         fs::write(&unrelated, "custom").unwrap();
 
         let first = install_into(SkillScope::Project, destination.clone()).unwrap();
-        assert_eq!((first.created, first.updated, first.unchanged), (6, 0, 0));
+        assert_eq!(
+            (
+                first.created,
+                first.updated,
+                first.unchanged,
+                first.removed_legacy
+            ),
+            (6, 0, 0, 0)
+        );
 
         let second = install_into(SkillScope::Project, destination.clone()).unwrap();
         assert_eq!(
-            (second.created, second.updated, second.unchanged),
-            (0, 0, 6)
+            (
+                second.created,
+                second.updated,
+                second.unchanged,
+                second.removed_legacy
+            ),
+            (0, 0, 6, 0)
         );
 
-        fs::write(destination.join("discord-notify/SKILL.md"), "outdated").unwrap();
+        fs::write(
+            destination.join("ping-me-send-message/SKILL.md"),
+            "outdated",
+        )
+        .unwrap();
         let third = install_into(SkillScope::Project, destination.clone()).unwrap();
-        assert_eq!((third.created, third.updated, third.unchanged), (0, 1, 5));
+        assert_eq!(
+            (
+                third.created,
+                third.updated,
+                third.unchanged,
+                third.removed_legacy
+            ),
+            (0, 1, 5, 0)
+        );
         assert_eq!(fs::read_to_string(unrelated).unwrap(), "custom");
+    }
+
+    #[test]
+    fn installation_removes_only_legacy_owned_files() {
+        let root = TempDir::new().unwrap();
+        let destination = root.path().join("skills");
+        let preserved = destination.join("discord-notify/notes.txt");
+        fs::create_dir_all(preserved.parent().unwrap()).unwrap();
+        fs::write(&preserved, "keep me").unwrap();
+
+        for relative_path in LEGACY_OWNED_FILES {
+            let target = destination.join(relative_path);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::write(target, "legacy").unwrap();
+        }
+
+        let summary = install_into(SkillScope::Project, destination.clone()).unwrap();
+        assert_eq!(summary.removed_legacy, LEGACY_OWNED_FILES.len());
+        assert_eq!(fs::read_to_string(preserved).unwrap(), "keep me");
+        for relative_path in LEGACY_OWNED_FILES {
+            assert!(!destination.join(relative_path).exists());
+        }
+        assert!(!destination.join("discord-agent-notify").exists());
     }
 }

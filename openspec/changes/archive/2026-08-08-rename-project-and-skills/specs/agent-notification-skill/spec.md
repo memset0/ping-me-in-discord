@@ -1,10 +1,4 @@
-# agent-notification-skill Specification
-
-## Purpose
-
-Provide Codex with concise, repeatable workflows for sending Discord notifications while preserving channel intent, conversation identity, and visible failure handling.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: A simple Codex notification skill is available
 The project SHALL provide a repository-local Codex skill named `ping-me-send-message`. The skill SHALL be used for intentional free-form Discord messages requested by the user or explicitly required as free-form notifications, and it SHALL NOT be selected merely to report an agent lifecycle state. The skill SHALL teach the agent to obtain `CODEX_THREAD_ID`, inspect channels with `pingme channels list --json`, inspect configured avatar profiles with `pingme avatar list --json`, and send freely formatted content through `pingme`. An explicitly requested channel or avatar SHALL take precedence; otherwise the skill SHALL use the effective default channel and SHALL omit the avatar when no suitable configured profile exists.
@@ -48,57 +42,11 @@ The project SHALL provide a repository-local Codex skill named `ping-me-report-a
 - **WHEN** the user asks to send arbitrary Discord Markdown or choose a custom avatar without assigning a lifecycle state
 - **THEN** the agent selects `ping-me-send-message` instead of `ping-me-report-agent-status`
 
+## ADDED Requirements
+
 ### Requirement: Skill instructions render as valid GitHub Flavored Markdown
 Each bundled `SKILL.md` SHALL render its headings, ordered workflow, examples, and failure rules as their intended GitHub Flavored Markdown structures. A fenced command example SHALL NOT absorb later workflow steps or headings.
 
 #### Scenario: Strict skill example remains bounded
 - **WHEN** GitHub Flavored Markdown renders the multi-line dry-run example in `ping-me-report-agent-status/SKILL.md`
 - **THEN** only the command example is rendered as code and workflow steps 7 and 8 plus `Failure rules` remain normal document content
-
-### Requirement: Strict notifications follow one compact message structure
-The strict skill SHALL format content as a bold status emoji and short title on the first line, a one- or two-sentence summary on the second line, and an optional bold `Next:` line only when a next action is useful. It SHALL exclude logs, stack traces, credentials, tokens, webhook URLs, and detailed diagnostic reports.
-
-#### Scenario: Progress has a next action
-- **WHEN** the agent sends a progress notification with remaining work
-- **THEN** the content contains a bold progress title, a concise summary, and a `**Next:**` line describing the next action
-
-#### Scenario: Completion needs no next action
-- **WHEN** the agent sends a success notification and no user action is needed
-- **THEN** the content ends after the concise summary without an empty or placeholder `Next:` line
-
-### Requirement: Normal agent notifications require a Codex thread ID
-Both skills SHALL read the current Codex thread ID from `CODEX_THREAD_ID` before normal delivery and SHALL rely on the selected message template to include that value in its metadata header. The skills SHALL distinguish the Codex thread ID from Discord's `--thread-id` delivery option. If `CODEX_THREAD_ID` is unavailable or empty, the skill SHALL stop the normal send and invoke bounded failure reporting instead of inventing an identifier.
-
-#### Scenario: Current thread is available
-- **WHEN** `CODEX_THREAD_ID` contains a non-empty identifier
-- **THEN** the skill proceeds and the rendered Discord message includes that identifier in its metadata header
-
-#### Scenario: Current thread is unavailable
-- **WHEN** `CODEX_THREAD_ID` is unset or empty
-- **THEN** the skill does not send a normal notification and performs one failure-report attempt
-
-### Requirement: Skill CLI failures receive bounded Discord reporting
-Every `pingme` invocation prescribed by either skill SHALL run through its bundled safe-execution script. When the wrapped command fails, the script SHALL preserve the original nonzero status and invoke `pingme report-error` exactly once. The error report SHALL contain only a warning emoji, a short failure statement, and the Codex thread ID when available; it SHALL not include the original diagnostic.
-
-#### Scenario: Inspection command fails
-- **WHEN** a channel or avatar inspection command exits nonzero before a destination has been selected
-- **THEN** the wrapper attempts one error report using the configured default channel and returns the inspection command's original status
-
-#### Scenario: Send command fails
-- **WHEN** a send command explicitly selected channel `test` and exits nonzero
-- **THEN** the wrapper asks the error reporter to target `test` and then returns the send command's original status
-
-### Requirement: Error reports fall back without recursion
-The `report-error` command SHALL send a built-in, template-independent message to the requested channel when that selector resolves and delivery succeeds. If the selector is unknown or delivery to the resolved requested channel fails, it SHALL attempt the configured default channel once when that destination differs. If no channel is supplied, it SHALL use the configured default directly. Failure of the final error-report attempt SHALL be reported locally and SHALL NOT trigger another Discord report.
-
-#### Scenario: Requested alias does not exist
-- **WHEN** error reporting receives an unknown nonnumeric channel selector and a valid default channel exists
-- **THEN** it sends the short error message to the default channel
-
-#### Scenario: Requested channel is unreachable
-- **WHEN** error delivery to a resolved requested channel fails and a different default channel is configured
-- **THEN** it makes one additional delivery attempt to the default channel
-
-#### Scenario: Reporting infrastructure is unavailable
-- **WHEN** both the requested and default error-report attempts fail because configuration, credentials, or networking is unusable
-- **THEN** the command exits nonzero with a local diagnostic and does not recurse

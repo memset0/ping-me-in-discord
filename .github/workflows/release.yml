@@ -87,7 +87,7 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          archive="notify-me-on-discord-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz"
+          archive="ping-me-in-discord-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz"
           mkdir -p dist stage
           cp "target/${{ matrix.target }}/release/notify-me-on-discord" stage/
           cp "target/${{ matrix.target }}/release/pingme" stage/
@@ -103,7 +103,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $archive = "notify-me-on-discord-${env:GITHUB_REF_NAME}-${{ matrix.target }}.zip"
+          $archive = "ping-me-in-discord-${env:GITHUB_REF_NAME}-${{ matrix.target }}.zip"
           New-Item -ItemType Directory -Force dist, stage | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/notify-me-on-discord.exe" stage/
           Copy-Item "target/${{ matrix.target }}/release/pingme.exe" stage/

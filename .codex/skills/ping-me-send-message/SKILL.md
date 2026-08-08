@@ -1,11 +1,11 @@
 ---
-name: discord-notify
-description: Send user-requested or project-required Discord notifications through the local pingme CLI with free-form content, configured channel aliases, optional configured avatar profiles, and the current Codex thread ID. Use when Codex must notify, ping, or update the user on Discord and should discover available routing or identity choices safely. Use discord-agent-notify instead when a strict lifecycle status format is required.
+name: ping-me-send-message
+description: Send an intentional free-form Discord message through the local pingme CLI with configured channel aliases, optional configured avatar profiles, and the current Codex thread ID. Use when the user asks Codex to send, ping, or forward arbitrary content to Discord, or when a project explicitly requires a free-form Discord message. Do not use for a structured started, progress, success, needs-input, warning, or error agent lifecycle report; use ping-me-report-agent-status instead.
 ---
 
-# Discord Notify
+# Ping Me: Send Message
 
-Send one intentional Discord notification without reading the secret-bearing TOML file.
+Send one intentional free-form Discord message without reading the secret-bearing TOML file. Do not use this workflow merely to report an agent lifecycle state.
 
 ## Workflow
 

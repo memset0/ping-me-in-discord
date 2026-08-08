@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-notify_repository="${DISCORD_NOTIFICATION_REPOSITORY:-memset0/discord-notification}"
+notify_repository="${DISCORD_NOTIFICATION_REPOSITORY:-memset0/ping-me-in-discord}"
 notify_install_dir="${DISCORD_NOTIFICATION_INSTALL_DIR:-}"
 notify_version="${DISCORD_NOTIFICATION_VERSION:-}"
 
@@ -78,7 +78,7 @@ if [ -z "$notify_install_dir" ]; then
     notify_install_dir="${HOME}/.local/bin"
 fi
 
-notify_archive="notify-me-on-discord-${notify_tag}-${notify_target}.tar.gz"
+notify_archive="ping-me-in-discord-${notify_tag}-${notify_target}.tar.gz"
 notify_download_base="https://github.com/${notify_repository}/releases/download/${notify_tag}"
 notify_temp_dir=$(mktemp -d)
 notify_cleanup() {
@@ -135,7 +135,7 @@ for notify_binary in notify-me-on-discord pingme; do
     mv -f "$notify_temporary_destination" "${notify_install_dir}/${notify_binary}"
 done
 
-printf 'Installed notify-me-on-discord %s to %s\n' "$notify_tag" "$notify_install_dir"
+printf 'Installed ping-me-in-discord %s to %s\n' "$notify_tag" "$notify_install_dir"
 case ":${PATH:-}:" in
     *":${notify_install_dir}:"*) ;;
     *)
