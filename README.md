@@ -1,17 +1,19 @@
 # ping-me-in-discord
 
-`ping-me-in-discord` is a Rust CLI project for sending Discord notifications. It renders Markdown templates into Discord webhook messages and retains two equivalent command-line entry points:
+`ping-me-in-discord` is a rootless Rust CLI for sending templated Discord notifications. Releases install two equivalent executable names:
 
 ```console
 pingme 'message content'
 ping-me-in-discord 'message content'
 ```
 
-By default, the text becomes the `message` variable for `templates/defaults.md` beside the binary and is sent to the configured Discord channel. The template, channel, username, and avatar can all be overridden for an individual invocation.
+This guide uses the shorter `pingme` spelling from here on. Messages preserve Discord Markdown and can select a channel, template, webhook username, and avatar for each send.
 
-## Installation
+## Setup
 
-Releases provide prebuilt binaries, so end users need neither Rust nor root access. Inspect the installation script before running it:
+### 1. Install the CLI
+
+Releases provide prebuilt binaries, so end users need neither Rust nor root access. Inspect the installer before running it:
 
 ```console
 curl --proto '=https' --tlsv1.2 -fsSL \
@@ -21,132 +23,56 @@ less /tmp/ping-me-in-discord-install.sh
 sh /tmp/ping-me-in-discord-install.sh
 ```
 
-The installer places both `ping-me-in-discord` and `pingme` in `~/.local/bin` by default. Set `DISCORD_NOTIFICATION_INSTALL_DIR` to choose another user-owned directory:
+Both executable names are installed in `~/.local/bin` by default. Add that directory to `PATH` if necessary; the installer does not edit shell configuration. To use another user-owned directory:
 
 ```console
 DISCORD_NOTIFICATION_INSTALL_DIR="$HOME/bin" sh /tmp/ping-me-in-discord-install.sh
 ```
 
-Add `~/.local/bin` to your shell's `PATH` if necessary. The installer does not modify shell configuration.
+Upgrades preserve neighboring configuration and templates. They remove the exact legacy `notify-me-on-discord` executable only after both current entry points are installed successfully. See [Releases](docs/releases.md) for supported targets, checksums, and manual installation.
 
-When upgrading, the installer removes the exact legacy `notify-me-on-discord` executable only after both current entry points are installed successfully. It preserves neighboring configuration, templates, and unrelated files. Existing scripts must switch to `ping-me-in-discord` or `pingme`.
+### 2. Create and configure `config.toml`
 
-## Installing the coding-agent skills
-
-The binary embeds one canonical copy of the `ping-me-send-message` and `ping-me-report-agent-status` skills and can install it for either Codex or Claude Code. Installation does not require cloning this repository, reading Discord configuration, or accessing the network.
-
-To install for Codex in the current project, enter the project root and run:
+Standard initialization follows platform directory conventions. On Linux it creates configuration under `~/.config/discord-notification` and keeps runtime state and the emoji cache under `~/.local/share/discord-notification`:
 
 ```console
-cd /path/to/your-project
-pingme skills install --scope project --agent codex
+pingme init
+pingme config path
 ```
 
-This copies regular files into `.codex/skills/ping-me-send-message` and `.codex/skills/ping-me-report-agent-status`. Omitting `--agent` also selects Codex for backward compatibility.
-
-To install for Claude Code in the current project:
+For a portable installation, place `config.toml` and `templates/defaults.md` beside the executable instead:
 
 ```console
-pingme skills install --scope project --agent claude-code
+pingme init --portable
 ```
 
-This copies the same canonical `SKILL.md` and runner files into `.claude/skills`; Codex-only `agents/openai.yaml` metadata is omitted. `--agent claude` is accepted as a shorter alias.
-
-For user-global installation, select the agent explicitly:
-
-```console
-pingme skills install --scope global --agent codex
-pingme skills install --scope global --agent claude-code
-```
-
-Codex global installation uses `${CODEX_HOME}/skills` when `CODEX_HOME` is non-empty and otherwise uses `~/.codex/skills`. Claude Code global installation uses `${CLAUDE_CONFIG_DIR}/skills` when `CLAUDE_CONFIG_DIR` is non-empty and otherwise uses `~/.claude/skills`.
-
-Every installed asset is an independent regular-file copy in the selected coding agent's configuration directory; the installer never creates symbolic links. Re-running a command refreshes the CLI-owned files. Identical regular files remain unchanged, while outdated, locally modified, or symbolic-link owned paths are atomically replaced from the current binary. Unrelated skill directories remain untouched.
-
-Codex upgrades migrate the former `$discord-notify` and `$discord-agent-notify` installation. The installer removes only the three files it owned in each legacy directory; any additional files remain untouched. Claude Code installation does not claim or remove those legacy paths.
-
-After creating a top-level skills directory, restart or reopen the selected agent if it does not discover the new skills immediately. Invoke the free-form message skill or the strict lifecycle-status skill as follows:
-
-```text
-# Codex
-$ping-me-send-message
-$ping-me-report-agent-status
-
-# Claude Code
-/ping-me-send-message
-/ping-me-report-agent-status
-```
-
-## Initialization
-
-Portable mode places `config.toml` and `templates/defaults.md` beside the binary:
-
-```console
-ping-me-in-discord init --portable
-```
-
-Standard user mode follows platform directory conventions. On Linux, configuration is written below `~/.config/discord-notification`, while runtime state and the emoji cache live below `~/.local/share/discord-notification`:
-
-```console
-ping-me-in-discord init
-```
-
-Configuration lookup uses this precedence:
-
-1. `--config /path/to/config.toml`
-2. `DISCORD_NOTIFICATION_CONFIG`
-3. `config.toml` beside the binary
-4. The platform user configuration directory
-
-Inspect the selected path and validate configuration offline with:
-
-```console
-ping-me-in-discord config path
-ping-me-in-discord config validate
-pingme channels list --json
-pingme avatar list --json
-```
-
-The final two commands expose only channel and avatar metadata that is safe for agents to select. They do not print Bot tokens, webhook URLs, or avatar source paths.
-
-## Discord credentials
-
-### Direct webhook URL
-
-This is the simplest and least-privileged setup. A Discord incoming webhook URL already contains its webhook token, so no Bot token is required:
+Choose one Discord credential model in `config.toml`:
 
 ```toml
+# Simplest option: one fixed Discord destination.
 [discord]
 webhook_url = "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"
-webhook_name = "Notify Me"
+webhook_name = "Ping Me"
+
+[defaults]
+template = "defaults"
 ```
 
-### Bot token with automatic webhook provisioning
-
-You can instead configure a Bot token and map readable aliases to multiple channel IDs under `[channels]`. The Bot must have `MANAGE_WEBHOOKS` in each target channel. On first delivery, the CLI reuses a matching incoming webhook or creates one and caches its URL by channel.
+Or use a Bot token when messages must route to multiple channels or use generated local avatars. The Bot needs `MANAGE_WEBHOOKS` in every target channel:
 
 ```toml
 [discord]
 bot_token = "YOUR_BOT_TOKEN"
-webhook_name = "Notify Me"
+webhook_name = "Ping Me"
 
 [channels]
-alerts = "123456789012345678"
-releases = "234567890123456789"
+default = "123456789012345678"
+test = "234567890123456789"
 
 [defaults]
-channel = "alerts"
+channel = "default"
+template = "defaults"
 ```
-
-Use the default channel, an alias, or a numeric channel ID:
-
-```console
-pingme 'default destination'
-pingme 'release completed' --channel releases
-pingme 'one-off destination' --channel 345678901234567890
-```
-
-An incoming webhook cannot redirect a message to an arbitrary channel at execution time. When `--channel`, frontmatter `channel`, or `[defaults].channel` selects a destination, the CLI uses the Bot to manage that channel's webhook. A single `discord.webhook_url` is suitable only for a fixed destination when every configuration layer omits a channel.
 
 Environment variables are recommended for secrets and override file values:
 
@@ -156,36 +82,86 @@ export DISCORD_NOTIFICATION_WEBHOOK_URL='https://discord.com/api/webhooks/...'
 export DISCORD_NOTIFICATION_BOT_TOKEN='...'
 ```
 
-The CLI redacts secrets from normal output, dry-run output, and API errors.
+Configuration lookup order is an explicit `--config` path, `DISCORD_NOTIFICATION_CONFIG`, `config.toml` beside the executable, then the platform user configuration directory. Validate the selected configuration without contacting Discord:
+
+```console
+pingme config validate
+pingme channels list --json
+pingme avatar list --json
+```
+
+The two JSON listings expose safe selection metadata only; they do not reveal credentials or local avatar source paths. See the [configuration reference](docs/configuration.md) and [complete example](examples/config.toml) for all settings.
+
+### 3. Optionally install the agent skills
+
+The bundled skills are agent-framework-neutral: one canonical source teaches an agent how to send free-form messages or structured lifecycle reports. The CLI currently provides installation adapters for Codex and Claude Code.
+
+Install into the current project:
+
+```console
+pingme skills install --scope project --agent codex
+pingme skills install --scope project --agent claude-code
+```
+
+Or install for the current user:
+
+```console
+pingme skills install --scope global --agent codex
+pingme skills install --scope global --agent claude-code
+```
+
+| Adapter | Project directory | Global directory | Typical invocation |
+| --- | --- | --- | --- |
+| Codex | `.codex/skills` | `${CODEX_HOME}/skills` or `~/.codex/skills` | `$ping-me-send-message` |
+| Claude Code | `.claude/skills` | `${CLAUDE_CONFIG_DIR}/skills` or `~/.claude/skills` | `/ping-me-send-message` |
+
+`--agent claude` is an alias for `claude-code`; omitting `--agent` retains the historical Codex default. Installation copies independent regular files and never creates symbolic links. Re-run the same command to refresh CLI-owned files without touching unrelated skills, then restart the agent if it does not discover them immediately. Codex refreshes also clean up only the files owned by the former `discord-notify` and `discord-agent-notify` skill names.
+
+## Send messages
+
+The shortest command sends through the default template and destination:
+
+```console
+pingme 'build completed'
+```
+
+Use a configured channel alias or a numeric Discord channel ID:
+
+```console
+pingme 'release completed' --channel releases
+pingme 'one-off destination' --channel 345678901234567890
+```
+
+Common per-message overrides are:
+
+```console
+pingme 'deploy completed' \
+  --channel releases \
+  --username 'Deploy Bot' \
+  --avatar rocket \
+  --no-tts
+```
+
+Send fields use one precedence order:
+
+```text
+CLI argument > template frontmatter > config.toml [defaults] > unset
+```
+
+The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, and the one-off avatar options below. If every layer omits an avatar, Discord's default webhook avatar is used.
 
 ## Templates
 
-When no template is specified, `[defaults].template` initially selects `defaults`, which resolves to `templates/defaults.md`. A newly initialized default template contains:
+`[defaults].template = "defaults"` selects `templates/defaults.md`. A new default template places host, local time, and an optional agent session ID above the message without an extra blank line:
 
 ```jinja
 > **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
 {{ message }}
 ```
 
-Ordinary shell invocations show the hostname and time. The installed skill runner reads `CODEX_THREAD_ID` from Codex or `CLAUDE_CODE_SESSION_ID` from Claude Code and exposes that session ID to the existing template runtime, so the current coding-agent session is appended after the timestamp:
+The template body preserves Discord Markdown. The reserved `runtime` object also provides Unix and ISO 8601 timestamps. Hostnames and session IDs may be internal metadata, so remove those fields from custom templates when they should not be sent.
 
-```console
-pingme 'build completed'
-```
-
-The first line contains the CLI host's `user@hostname` and local time, and `build completed` follows immediately on the next line. The template body preserves Discord Markdown, so bold text, lists, links, and other Discord Markdown in the message are not escaped.
-
-Every render receives a reserved `runtime` object:
-
-- `runtime.user` and `runtime.hostname`: the current system identity, falling back to `unknown-user` and `unknown-host` when unavailable.
-- `runtime.codex_thread_id`: the optional coding-agent session ID transported through `CODEX_THREAD_ID`. The skill runner normalizes Claude Code's `CLAUDE_CODE_SESSION_ID` into this compatibility field; it is normally `null` in an ordinary shell.
-- `runtime.timestamp.local`: local machine time in `M/D HH:mm:ss` format.
-- `runtime.timestamp.unix`: Unix seconds for the same captured instant.
-- `runtime.timestamp.iso8601`: a UTC ISO 8601 representation of the same instant.
-
-Callers cannot replace `runtime` through `--data` or `--var`; collisions fail before any network request. Hostnames and thread IDs may be internal metadata, so remove those fields from your own template when they should not be sent. The installer and non-forced initialization preserve an existing `templates/defaults.md`, which means upgrading users must merge the conditional thread fragment manually if they want it.
-
-Templates can begin with YAML frontmatter:
+Templates can use YAML frontmatter for message metadata and Discord payload fields:
 
 ```markdown
 ---
@@ -199,87 +175,31 @@ embeds:
 Triggered by **{{ actor }}**.
 ```
 
-Send a named template with variables:
+Render a named template with command-line or JSON variables:
 
 ```console
-ping-me-in-discord send \
-  --template deployment \
-  --var project=API \
-  --var version=v1.2.3 \
-  --var summary=successful \
-  --var actor=CI
-```
-
-Variables can also come from a JSON object. Repeated `--var` arguments have the highest precedence:
-
-```console
-ping-me-in-discord send --template deployment --data event.json --var actor=manual
-```
-
-Inspect templates and the final payload without delivery:
-
-```console
-ping-me-in-discord templates list
+pingme send --template deployment --var project=API --var version=v1.2.3
+pingme send --template deployment --data event.json --var actor=manual
+pingme templates list
 pingme 'preview only' --dry-run
 ```
 
-Dry-run mode does not provision webhooks, update avatars, or contact Discord. Undefined template variables fail immediately. When `allowed_mentions` is absent, the CLI disables mention parsing so template content cannot unexpectedly trigger `@everyone`.
-
-Send options use one precedence order:
-
-```text
-CLI argument > template frontmatter > config.toml [defaults] > unset
-```
-
-Common per-message overrides include:
-
-```console
-pingme 'deploy completed' \
-  --channel releases \
-  --username 'Deploy Bot' \
-  --avatar rocket \
-  --no-tts
-```
-
-The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, and the one-off avatar arguments described below. Complex embeds, components, polls, and allowed mentions remain in template frontmatter.
-
-See the [configuration reference](docs/configuration.md) for every frontmatter field, avatar type, and configuration option.
+Dry-run mode does not contact Discord or provision webhooks. Undefined variables fail before delivery, and mention parsing is disabled by default unless a template explicitly configures `allowed_mentions`. Complex embeds, components, polls, and allowed mentions belong in frontmatter; the [configuration reference](docs/configuration.md) lists every supported field.
 
 ## Avatars
 
-Define reusable profiles under `[avatars.<name>]` in `config.toml`. CLI `--avatar <name>`, template frontmatter `avatar`, and `[defaults].avatar` can all select a profile:
+Named profiles in `[avatars.<name>]` keep presentation policy in `config.toml`. Profiles can use a local image, emoji, centered text, or a font glyph. Generated avatars support foreground and background colors, dimensions, font settings, and an independent `scale` value whose default is `0.72`.
 
-- `image`: an HTTPS image URL becomes the current message's `avatar_url`; a local image is center-cropped into a square PNG.
-- `emoji`: transparent Twemoji artwork is downloaded, cached, and rendered over the configured background. Optional `foreground` recolors visible artwork while preserving its alpha outline and anti-aliasing. Omitted `scale` defaults to `0.72` and remains configurable per profile.
-- `text`: a Chinese character, Latin letter, or short Unicode string is centered with configurable foreground and background colors.
-- `font-icon`: a glyph from a user-supplied TTF, OTF, or TTC font is rendered through the same pipeline, including Font Awesome icons.
+New configurations include `started`, `progress`, `success`, `needs-input`, `warning`, and `error` profiles for agent status reports. The skills select only a profile name; artwork, colors, and scale stay in configuration. Upgrades preserve existing configuration, so copy desired profiles from the [complete example](examples/config.toml).
 
-An optional `description` helps people and agents select a profile without affecting rendering:
-
-```toml
-[avatars.release]
-description = "Use for successful releases"
-type = "emoji"
-emoji = "🚀"
-background = "#5865F2"
-```
-
-New configurations also include the `started`, `progress`, `success`, `needs-input`, `warning`, and `error` agent status profiles. The strict notification skill passes only `--avatar <status>`; emoji, color, size, and scale remain entirely in `config.toml`. The `error` profile uses the accepted `scale = 0.576`. Upgrades never overwrite existing configuration, so existing users must manually copy these common profile blocks from the [complete example](examples/config.toml).
-
-List the safe profile summary:
+Inspect or preview profiles:
 
 ```console
 pingme avatar list
-pingme avatar list --json
+pingme avatar preview rocket --output rocket.png
 ```
 
-Preview a local or generated avatar:
-
-```console
-ping-me-in-discord avatar preview rocket --output rocket.png
-```
-
-You can also define an avatar for one invocation:
+Define a one-off avatar for one message:
 
 ```console
 pingme 'rocket launched' --avatar-emoji '🚀' --avatar-background '#5865F2'
@@ -289,30 +209,26 @@ pingme 'custom image' --avatar-file ./avatar.png --avatar-size 256
 pingme 'remote image' --avatar-url https://example.com/avatar.png
 ```
 
-Only one of `--avatar`, `--avatar-url`, `--avatar-file`, `--avatar-emoji`, `--avatar-text`, and `--avatar-icon` can be used at a time. Font icons additionally require `--avatar-font`. Style arguments include `--avatar-foreground`, `--avatar-background`, `--avatar-size`, `--avatar-font-size`, and `--avatar-scale`.
+Only one avatar source may be selected at a time. Font icons additionally require `--avatar-font`; styling options include `--avatar-foreground`, `--avatar-background`, `--avatar-size`, `--avatar-font-size`, and `--avatar-scale`.
 
-Discord requires `avatar_url` to be an HTTPS URL it can access, so remote images are sent as per-message avatar overrides. Local images, emoji, text, and font icons are rendered as PNG and assigned to dedicated incoming webhook identities keyed by target channel and image digest. Different generated avatars therefore do not repeatedly mutate one base webhook. This path requires a resolved channel and a Bot token with `MANAGE_WEBHOOKS` in that channel. Missing prerequisites cause an explicit failure instead of a silent fallback to the default avatar.
+Discord must be able to fetch a remote `avatar_url`. Local and generated avatars require a resolved channel plus a Bot token with `MANAGE_WEBHOOKS`; the CLI assigns each image digest a dedicated incoming webhook identity instead of repeatedly mutating one base webhook. Missing prerequisites fail explicitly rather than silently falling back to the default avatar.
 
-When every configuration layer omits an avatar, the CLI always uses the base webhook with Discord's default avatar. The first time an upgraded CLI encounters legacy state indicating that an older version modified a base webhook, it resets that avatar to `null` and clears the legacy state entry.
+## Agent notification skills
 
-## Codex agent notification skills
+The two skills deliberately have different responsibilities:
 
-The project provides two Codex skills with intentionally separate responsibilities:
+- `ping-me-send-message` sends intentional free-form Discord Markdown and can select any configured channel and optional avatar profile.
+- `ping-me-report-agent-status` reports exactly one of `started`, `progress`, `success`, `needs-input`, `warning`, or `error` with the same-named configured profile.
 
-- `$ping-me-send-message`: sends intentional free-form Discord Markdown after using JSON commands to select a configured channel and optional avatar profile. It is not used merely to report an agent lifecycle state.
-- `$ping-me-report-agent-status`: reports exactly one of `started`, `progress`, `success`, `needs-input`, `warning`, or `error` and passes the same-named configured profile. It does not handle arbitrary messages or custom avatar selection, and it contains no emoji, color, or scale settings.
+The common runner obtains the active coding-agent session ID from the environment, dry-runs the template, verifies that the ID was rendered, and then sends the live notification. It currently recognizes `CLAUDE_CODE_SESSION_ID` and `CODEX_THREAD_ID`, normalizing either into the template's compatibility field `runtime.codex_thread_id`.
 
-Both skills read `CODEX_THREAD_ID`, dry-run the message, and verify that the local template rendered the exact ID before performing the live send. Every CLI call runs through the skill's `scripts/run-pingme.sh`; after a wrapped command fails, the runner makes exactly one short error-report attempt and preserves the original exit status.
-
-Error reporting can also be invoked directly:
+Every skill CLI call goes through the bounded runner. If a wrapped call fails, it makes one short error-report attempt and preserves the original exit status. The report uses the requested channel when possible, falls back to `[defaults].channel` when the requested alias is unknown or delivery fails, and never recurses:
 
 ```console
 pingme report-error --channel alerts
 ```
 
-This command bypasses templates and avatars and sends only `⚠️ Agent notification failed ...`. If the selected channel is unknown or delivery fails, it attempts a different `[defaults].channel` once. If configuration, credentials, or the network are unavailable, it fails locally without recursion.
-
-Install these skills at project or global scope with the earlier `pingme skills install` commands. This initial release does not include a Claude Code version. Existing installations with an older `defaults.md` must manually adopt the `runtime.codex_thread_id` conditional fragment and merge the six status profiles into `config.toml`; upgrades preserve user templates and configuration.
+Because the skill source and behavior are not tied to a particular agent product, another compatible framework can use the same installed files when it supports the skill format and provides one of the recognized session identifiers. The built-in destination adapters listed in [Setup](#3-optionally-install-the-agent-skills) handle the framework-specific directory layout and invocation syntax.
 
 ## Development and releases
 
@@ -323,6 +239,6 @@ cargo test --locked --all-targets
 cargo build --release
 ```
 
-A `vX.Y.Z` tag triggers the release workflow. Linux x86_64 and ARM64 musl archives are the primary artifacts, with additional GNU/Linux, macOS, and Windows builds when their CI targets succeed. Every archive has a SHA-256 checksum. See the [release documentation](docs/releases.md) for details.
+A `vX.Y.Z` tag triggers the release workflow. Linux x86_64 and ARM64 musl archives are the primary artifacts, with additional GNU/Linux, macOS, and Windows builds when their CI targets succeed. Every archive has a SHA-256 checksum. See [Releases](docs/releases.md) for details.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for emoji artwork attribution.
