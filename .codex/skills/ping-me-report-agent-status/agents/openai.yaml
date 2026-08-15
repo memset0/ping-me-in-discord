@@ -1,4 +1,0 @@
-interface:
-  display_name: "Ping Me: Report Agent Status"
-  short_description: "Report a structured agent lifecycle status"
-  default_prompt: "Use $ping-me-report-agent-status to report this agent lifecycle update on Discord."

@@ -94,7 +94,13 @@ The two JSON listings expose safe selection metadata only; they do not reveal cr
 
 ### 3. Optionally install the agent skills
 
-The bundled skills are agent-framework-neutral: one canonical source teaches an agent how to send free-form messages or structured lifecycle reports. The CLI currently provides installation adapters for Codex and Claude Code.
+The three bundled skills are agent-framework-neutral and maintained from one canonical source:
+
+- `ping-me-send-message` sends one intentional free-form message.
+- `ping-me-report-work-progress` reports milestones while the agent keeps working.
+- `ping-me-report-turn-outcome` sends one result immediately before each response or user-input wait.
+
+The CLI currently provides installation adapters for Codex and Claude Code.
 
 Install into the current project:
 
@@ -115,7 +121,7 @@ pingme skills install --scope global --agent claude-code
 | Codex | `.codex/skills` | `${CODEX_HOME}/skills` or `~/.codex/skills` | `$ping-me-send-message` |
 | Claude Code | `.claude/skills` | `${CLAUDE_CONFIG_DIR}/skills` or `~/.claude/skills` | `/ping-me-send-message` |
 
-`--agent claude` is an alias for `claude-code`; omitting `--agent` retains the historical Codex default. Installation copies independent regular files and never creates symbolic links. Re-run the same command to refresh CLI-owned files without touching unrelated skills, then restart the agent if it does not discover them immediately. Codex refreshes also clean up only the files owned by the former `discord-notify` and `discord-agent-notify` skill names.
+`--agent claude` is an alias for `claude-code`; omitting `--agent` retains the historical Codex default. Installation copies independent regular files and never creates symbolic links. Re-run the same command to refresh CLI-owned files without touching unrelated skills, then restart or reopen the agent if it does not discover them immediately. Refreshes remove only installer-owned files under the retired `ping-me-report-agent-status` name; Codex also cleans up installer-owned files under the older `discord-notify` and `discord-agent-notify` names.
 
 ## Send messages
 
@@ -152,14 +158,15 @@ The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, a
 
 ## Templates
 
-`[defaults].template = "defaults"` selects `templates/defaults.md`. A new default template places host, local time, and an optional agent session ID above the message without an extra blank line:
+`[defaults].template = "defaults"` selects `templates/defaults.md`. A new default template places agent, project, session, host, local time, and an optional session ID above the message without extra blank lines:
 
 ```jinja
-> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
+> **🤖 `{{ runtime.agent.name }}`   📦 `{{ runtime.project.name }}`   💬 `{{ runtime.session.name }}`**
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.session.id %}   🧵 `{{ runtime.session.id }}`{% endif %}**
 {{ message }}
 ```
 
-The template body preserves Discord Markdown. The reserved `runtime` object also provides Unix and ISO 8601 timestamps. Hostnames and session IDs may be internal metadata, so remove those fields from custom templates when they should not be sent.
+The template body preserves Discord Markdown. The reserved `runtime` object also provides `runtime.timestamp.unix`, `runtime.timestamp.iso8601`, and `runtime.codex_thread_id` as a compatibility alias for `runtime.session.id`. Direct CLI use falls back to agent `CLI`, the current directory name, and session `interactive`. Agent runners supply richer values through `PINGME_AGENT_NAME`, `PINGME_PROJECT_NAME`, `PINGME_SESSION_NAME`, and `PINGME_SESSION_ID`. Hostnames, project names, and session identifiers may be internal metadata, so remove fields from custom templates when they should not be sent.
 
 Templates can use YAML frontmatter for message metadata and Discord payload fields:
 
@@ -190,7 +197,7 @@ Dry-run mode does not contact Discord or provision webhooks. Undefined variables
 
 Named profiles in `[avatars.<name>]` keep presentation policy in `config.toml`. Profiles can use a local image, emoji, centered text, or a font glyph. Generated avatars support foreground and background colors, dimensions, font settings, and an independent `scale` value whose default is `0.72`.
 
-New configurations include `started`, `progress`, `success`, `needs-input`, `warning`, and `error` profiles for agent status reports. The skills select only a profile name; artwork, colors, and scale stay in configuration. Upgrades preserve existing configuration, so copy desired profiles from the [complete example](examples/config.toml).
+New configurations include `started`, `progress`, `success`, `needs-input`, `warning`, and `error` profiles shared by the automatic notification skills. The skills select only a profile name; artwork, colors, and scale stay in configuration. Upgrades preserve existing configuration, so copy desired profiles from the [complete example](examples/config.toml).
 
 Inspect or preview profiles:
 
@@ -215,12 +222,17 @@ Discord must be able to fetch a remote `avatar_url`. Local and generated avatars
 
 ## Agent notification skills
 
-The two skills deliberately have different responsibilities:
+The boundaries are based on intent and whether the agent continues working:
 
-- `ping-me-send-message` sends intentional free-form Discord Markdown and can select any configured channel and optional avatar profile.
-- `ping-me-report-agent-status` reports exactly one of `started`, `progress`, `success`, `needs-input`, `warning`, or `error` with the same-named configured profile.
+| Skill | Use it for | Status profiles |
+| --- | --- | --- |
+| `ping-me-send-message` | One user-requested free-form Discord message | Any configured profile or Discord default |
+| `ping-me-report-work-progress` | Optional updates followed by more work | `started`, `progress`, `warning`, recoverable `error` |
+| `ping-me-report-turn-outcome` | Exactly one update immediately before yielding | `success`, `needs-input`, `warning`, terminal `error` |
 
-The common runner obtains the active coding-agent session ID from the environment, dry-runs the template, verifies that the ID was rendered, and then sends the live notification. It currently recognizes `CLAUDE_CODE_SESSION_ID` and `CODEX_THREAD_ID`, normalizing either into the template's compatibility field `runtime.codex_thread_id`.
+Explicitly invoking either automatic reporting skill enables its policy for later turns in the same conversation. It remains active until the user explicitly asks to stop that policy; activation does not carry into a new conversation and does not use hooks, Herdr, or machine-persistent state. The agent chooses one concise session name on activation and reuses it throughout the conversation.
+
+The common runner obtains the active session ID, infers agent and project context, dry-runs the template, verifies that the exact ID was rendered, and then sends once. Session-ID precedence is `PINGME_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, then `CODEX_THREAD_ID`. Explicit runner context can override agent, project, or session name without changing `config.toml`.
 
 Every skill CLI call goes through the bounded runner. If a wrapped call fails, it makes one short error-report attempt and preserves the original exit status. The report uses the requested channel when possible, falls back to `[defaults].channel` when the requested alias is unknown or delivery fails, and never recurses:
 
@@ -228,7 +240,7 @@ Every skill CLI call goes through the bounded runner. If a wrapped call fails, i
 pingme report-error --channel alerts
 ```
 
-Because the skill source and behavior are not tied to a particular agent product, another compatible framework can use the same installed files when it supports the skill format and provides one of the recognized session identifiers. The built-in destination adapters listed in [Setup](#3-optionally-install-the-agent-skills) handle the framework-specific directory layout and invocation syntax.
+Because the skill source and behavior are not tied to a particular agent product, another compatible framework can use the same files when it supports the skill format and exports `PINGME_SESSION_ID`. The built-in adapters listed in [Setup](#3-optionally-install-the-agent-skills) handle framework-specific directories and invocation syntax.
 
 ## Development and releases
 

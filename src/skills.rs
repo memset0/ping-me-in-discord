@@ -103,43 +103,81 @@ const BUNDLED_FILES: &[BundledFile] = &[
         audience: AssetAudience::Shared,
     },
     BundledFile {
-        relative_path: "ping-me-report-agent-status/SKILL.md",
-        contents: include_bytes!("../.codex/skills/ping-me-report-agent-status/SKILL.md"),
+        relative_path: "ping-me-report-work-progress/SKILL.md",
+        contents: include_bytes!("../.codex/skills/ping-me-report-work-progress/SKILL.md"),
         executable: false,
         audience: AssetAudience::Shared,
     },
     BundledFile {
-        relative_path: "ping-me-report-agent-status/agents/openai.yaml",
-        contents: include_bytes!("../.codex/skills/ping-me-report-agent-status/agents/openai.yaml"),
+        relative_path: "ping-me-report-work-progress/agents/openai.yaml",
+        contents: include_bytes!(
+            "../.codex/skills/ping-me-report-work-progress/agents/openai.yaml"
+        ),
         executable: false,
         audience: AssetAudience::CodexOnly,
     },
     BundledFile {
-        relative_path: "ping-me-report-agent-status/scripts/run-pingme.sh",
+        relative_path: "ping-me-report-work-progress/scripts/run-pingme.sh",
         contents: include_bytes!(
-            "../.codex/skills/ping-me-report-agent-status/scripts/run-pingme.sh"
+            "../.codex/skills/ping-me-report-work-progress/scripts/run-pingme.sh"
+        ),
+        executable: true,
+        audience: AssetAudience::Shared,
+    },
+    BundledFile {
+        relative_path: "ping-me-report-turn-outcome/SKILL.md",
+        contents: include_bytes!("../.codex/skills/ping-me-report-turn-outcome/SKILL.md"),
+        executable: false,
+        audience: AssetAudience::Shared,
+    },
+    BundledFile {
+        relative_path: "ping-me-report-turn-outcome/agents/openai.yaml",
+        contents: include_bytes!("../.codex/skills/ping-me-report-turn-outcome/agents/openai.yaml"),
+        executable: false,
+        audience: AssetAudience::CodexOnly,
+    },
+    BundledFile {
+        relative_path: "ping-me-report-turn-outcome/scripts/run-pingme.sh",
+        contents: include_bytes!(
+            "../.codex/skills/ping-me-report-turn-outcome/scripts/run-pingme.sh"
         ),
         executable: true,
         audience: AssetAudience::Shared,
     },
 ];
 
-const LEGACY_OWNED_FILES: &[&str] = &[
+const CODEX_LEGACY_OWNED_FILES: &[&str] = &[
     "discord-notify/SKILL.md",
     "discord-notify/agents/openai.yaml",
     "discord-notify/scripts/run-pingme.sh",
     "discord-agent-notify/SKILL.md",
     "discord-agent-notify/agents/openai.yaml",
     "discord-agent-notify/scripts/run-pingme.sh",
+    "ping-me-report-agent-status/SKILL.md",
+    "ping-me-report-agent-status/agents/openai.yaml",
+    "ping-me-report-agent-status/scripts/run-pingme.sh",
 ];
 
-const LEGACY_DIRECTORIES_DEEPEST_FIRST: &[&str] = &[
+const CODEX_LEGACY_DIRECTORIES_DEEPEST_FIRST: &[&str] = &[
     "discord-notify/agents",
     "discord-notify/scripts",
     "discord-notify",
     "discord-agent-notify/agents",
     "discord-agent-notify/scripts",
     "discord-agent-notify",
+    "ping-me-report-agent-status/agents",
+    "ping-me-report-agent-status/scripts",
+    "ping-me-report-agent-status",
+];
+
+const CLAUDE_LEGACY_OWNED_FILES: &[&str] = &[
+    "ping-me-report-agent-status/SKILL.md",
+    "ping-me-report-agent-status/scripts/run-pingme.sh",
+];
+
+const CLAUDE_LEGACY_DIRECTORIES_DEEPEST_FIRST: &[&str] = &[
+    "ping-me-report-agent-status/scripts",
+    "ping-me-report-agent-status",
 ];
 
 pub fn install(agent: SkillAgent, scope: SkillScope) -> Result<InstallSummary> {
@@ -264,17 +302,30 @@ fn install_into(
         }
     }
 
-    if agent == SkillAgent::Codex {
-        summary.removed_legacy = remove_legacy_owned_files(&summary.destination)?;
-    }
+    let (legacy_files, legacy_directories) = match agent {
+        SkillAgent::Codex => (
+            CODEX_LEGACY_OWNED_FILES,
+            CODEX_LEGACY_DIRECTORIES_DEEPEST_FIRST,
+        ),
+        SkillAgent::ClaudeCode => (
+            CLAUDE_LEGACY_OWNED_FILES,
+            CLAUDE_LEGACY_DIRECTORIES_DEEPEST_FIRST,
+        ),
+    };
+    summary.removed_legacy =
+        remove_legacy_owned_files(&summary.destination, legacy_files, legacy_directories)?;
 
     Ok(summary)
 }
 
-fn remove_legacy_owned_files(destination: &Path) -> Result<usize> {
+fn remove_legacy_owned_files(
+    destination: &Path,
+    legacy_files: &[&str],
+    legacy_directories: &[&str],
+) -> Result<usize> {
     let mut removed = 0;
 
-    for relative_path in LEGACY_OWNED_FILES {
+    for relative_path in legacy_files {
         let target = destination.join(relative_path);
         match fs::remove_file(&target) {
             Ok(()) => removed += 1,
@@ -287,7 +338,7 @@ fn remove_legacy_owned_files(destination: &Path) -> Result<usize> {
         }
     }
 
-    for relative_path in LEGACY_DIRECTORIES_DEEPEST_FIRST {
+    for relative_path in legacy_directories {
         let target = destination.join(relative_path);
         match fs::remove_dir(&target) {
             Ok(()) => {}
@@ -437,10 +488,10 @@ pub fn print_summary(summary: &InstallSummary) {
     println!("Legacy files: {} removed", summary.removed_legacy);
     match summary.agent {
         SkillAgent::Codex => println!(
-            "Restart or reopen Codex to load $ping-me-send-message and $ping-me-report-agent-status."
+            "Restart or reopen Codex to load $ping-me-send-message, $ping-me-report-work-progress, and $ping-me-report-turn-outcome."
         ),
         SkillAgent::ClaudeCode => println!(
-            "Restart or reopen Claude Code to load /ping-me-send-message and /ping-me-report-agent-status."
+            "Restart or reopen Claude Code to load /ping-me-send-message, /ping-me-report-work-progress, and /ping-me-report-turn-outcome."
         ),
     }
 }
@@ -577,7 +628,7 @@ mod tests {
                 first.unchanged,
                 first.removed_legacy
             ),
-            (6, 0, 0, 0)
+            (9, 0, 0, 0)
         );
 
         let second =
@@ -589,7 +640,7 @@ mod tests {
                 second.unchanged,
                 second.removed_legacy
             ),
-            (0, 0, 6, 0)
+            (0, 0, 9, 0)
         );
 
         fs::write(
@@ -606,7 +657,7 @@ mod tests {
                 third.unchanged,
                 third.removed_legacy
             ),
-            (0, 1, 5, 0)
+            (0, 1, 8, 0)
         );
         assert_eq!(fs::read_to_string(unrelated).unwrap(), "custom");
     }
@@ -619,7 +670,7 @@ mod tests {
         fs::create_dir_all(preserved.parent().unwrap()).unwrap();
         fs::write(&preserved, "keep me").unwrap();
 
-        for relative_path in LEGACY_OWNED_FILES {
+        for relative_path in CODEX_LEGACY_OWNED_FILES {
             let target = destination.join(relative_path);
             fs::create_dir_all(target.parent().unwrap()).unwrap();
             fs::write(target, "legacy").unwrap();
@@ -627,9 +678,9 @@ mod tests {
 
         let summary =
             install_into(SkillAgent::Codex, SkillScope::Project, destination.clone()).unwrap();
-        assert_eq!(summary.removed_legacy, LEGACY_OWNED_FILES.len());
+        assert_eq!(summary.removed_legacy, CODEX_LEGACY_OWNED_FILES.len());
         assert_eq!(fs::read_to_string(preserved).unwrap(), "keep me");
-        for relative_path in LEGACY_OWNED_FILES {
+        for relative_path in CODEX_LEGACY_OWNED_FILES {
             assert!(!destination.join(relative_path).exists());
         }
         assert!(!destination.join("discord-agent-notify").exists());
@@ -653,7 +704,7 @@ mod tests {
 
         assert_eq!(
             (summary.created, summary.updated, summary.unchanged),
-            (3, 1, 0)
+            (5, 1, 0)
         );
         assert!(fs::symlink_metadata(&target).unwrap().file_type().is_file());
         assert_eq!(fs::read(&target).unwrap(), BUNDLED_FILES[0].contents);

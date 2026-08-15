@@ -175,11 +175,12 @@ pingme channels list --json
 新初始化的 `templates/defaults.md` 使用以下精确布局；元信息 blockquote 在前，正文紧接下一行，没有额外空行：
 
 ```jinja
-> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
+> **🤖 `{{ runtime.agent.name }}`   📦 `{{ runtime.project.name }}`   💬 `{{ runtime.session.name }}`**
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.session.id %}   🧵 `{{ runtime.session.id }}`{% endif %}**
 {{ message }}
 ```
 
-`CODEX_THREAD_ID` 不为空时模板追加 thread 字段，否则保持原来的两字段布局。installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
+`runtime.session.id` 存在时第二行追加 thread 字段，否则只省略该字段。installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
 
 ```markdown
 ---
@@ -234,12 +235,18 @@ MiniJinja 使用严格 undefined 模式：
 | --- | --- |
 | `runtime.user` | 当前系统用户；不可用时为 `unknown-user` |
 | `runtime.hostname` | 当前 hostname；不可用时为 `unknown-host` |
-| `runtime.codex_thread_id` | 可选的 `CODEX_THREAD_ID` 单行值；与 Discord `thread_id` 无关 |
+| `runtime.agent.name` | agent 名称；自动识别 Codex/Claude Code，直接调用默认为 `CLI` |
+| `runtime.project.name` | project 名称；默认取当前目录 basename，不可用时为 `unknown-project` |
+| `runtime.session.id` | 可选的当前 agent 会话 ID；与 Discord `thread_id` 无关 |
+| `runtime.session.name` | 可读会话名；默认是 `session-<ID 前八位>`，无 ID 时为 `interactive` |
+| `runtime.codex_thread_id` | `runtime.session.id` 的兼容别名；新模板不再使用这个名称 |
 | `runtime.timestamp.local` | 运行机器本地时间，格式 `M/D HH:mm:ss` |
 | `runtime.timestamp.unix` | Unix 整数秒 |
 | `runtime.timestamp.iso8601` | UTC ISO 8601 时间 |
 
-顶层键 `runtime` 由 CLI 保留。`--data` 中包含该键或传入 `--var runtime=...` 时会在模板渲染和网络访问前报错。默认模板会把系统用户和 hostname 发送到 Discord；不希望暴露机器命名时，应编辑本机 `defaults.md` 删除该行或改用自己的标签。
+agent 上下文可以分别通过 `PINGME_AGENT_NAME`、`PINGME_PROJECT_NAME`、`PINGME_SESSION_NAME` 和 `PINGME_SESSION_ID` 显式提供，空值会被忽略。session ID 的完整优先级是 `PINGME_SESSION_ID`、`CLAUDE_CODE_SESSION_ID`、`CODEX_THREAD_ID`。所有上下文字段都会压缩为空白分隔的单行值，并把反引号替换为单引号，以安全放入 Discord inline code。
+
+顶层键 `runtime` 由 CLI 保留。`--data` 中包含该键或传入 `--var runtime=...` 时会在模板渲染和网络访问前报错。默认模板会发送系统用户、hostname、agent、project 和 session 元数据；不希望暴露这些名称时，应编辑本机 `defaults.md` 删除对应字段或改用自己的标签。
 
 变量来源按优先级由低到高为：
 
@@ -257,9 +264,9 @@ ping-me-in-discord send --template alert --data alert.json --var severity=critic
 
 ## Agent 状态头像 profile
 
-新初始化的 `config.toml` 提供 `started`、`progress`、`success`、`needs-input`、`warning` 和 `error` 六个普通 emoji profile。严格通知 skill 只选择同名 `--avatar <status>`，不会携带 emoji、颜色、尺寸或 scale；因此配置文件是视觉设定的唯一来源。前五个 starter profile 使用 `scale = 0.72`，`error` 使用已确认的 `scale = 0.576`。
+新初始化的 `config.toml` 提供 `started`、`progress`、`success`、`needs-input`、`warning` 和 `error` 六个共享的 emoji profile。两个自动通知 skill 只选择同名 `--avatar <status>`，不会携带 emoji、颜色、尺寸或 scale；因此配置文件是视觉设定的唯一来源。前五个 starter profile 使用 `scale = 0.72`，`error` 使用已确认的 `scale = 0.576`。
 
-升级和非强制初始化不会修改已有用户配置。现有用户需要从本页完整示例或 `examples/config.toml` 手动合入这些 profile；缺少所选 profile 时，严格通知会按既有 bounded failure 规则失败，不会临时合成 one-off 头像。
+升级和非强制初始化不会修改已有用户配置。现有用户需要从本页完整示例或 `examples/config.toml` 手动合入这些 profile；缺少所选 profile 时，自动通知会按既有 bounded failure 规则失败，不会临时合成 one-off 头像。
 
 ## 一次性头像参数
 
@@ -298,9 +305,9 @@ HTTPS 远程图片通过当前消息的 `avatar_url` 发送。本地图片、emo
 
 ## Agent 错误上报
 
-`pingme report-error [--channel <alias-or-id>]` 构造固定的短消息，不读取模板、原错误详情或头像设置。存在 `CODEX_THREAD_ID` 时消息会带该 ID。指定 channel 无法解析或投递失败时，命令只再尝试一次不同的 `[defaults].channel`；默认目标也失败后立即本地返回非零状态，不会递归。
+`pingme report-error [--channel <alias-or-id>]` 构造固定的短消息，不读取模板、原错误详情或头像设置。按通用、Claude Code、Codex 的优先级发现 agent session ID 后，消息会带该 ID。指定 channel 无法解析或投递失败时，命令只再尝试一次不同的 `[defaults].channel`；默认目标也失败后立即本地返回非零状态，不会递归。
 
-项目内两个 Codex skill 使用各自的安全 runner 包装每次 CLI 调用。普通用户调用不自动开启这项外部副作用。
+项目内三个 agent-neutral skill 使用内容相同的安全 runner 包装每次 CLI 调用。`ping-me-send-message` 只发送一次自由消息；`ping-me-report-work-progress` 在工作继续时汇报；`ping-me-report-turn-outcome` 在每次向用户 yield 前发送一次结果。显式启用后，后两个策略仅在当前对话中持续，直到用户明确停止；普通 CLI 调用不会自动启用它们。
 
 ## Secret 与 state
 

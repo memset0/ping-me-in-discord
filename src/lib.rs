@@ -395,7 +395,7 @@ fn print_avatar_listing(listing: &AvatarListing) {
 
 async fn report_error(config_path: Option<PathBuf>, requested_channel: Option<&str>) -> Result<()> {
     let loaded = load_config(config_path)?;
-    let payload = error_report_payload(runtime::current_codex_thread_id().as_deref());
+    let payload = error_report_payload(runtime::current_agent_session_id().as_deref());
     let discord = DiscordClient::new()?;
     let result = deliver_error_report(&loaded, requested_channel, &payload, &discord).await?;
     match result.channel {

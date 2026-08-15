@@ -435,6 +435,9 @@ mod tests {
         RuntimeMetadata::fixed(
             "mem",
             "vultr",
+            "CLI",
+            "ping-me-in-discord",
+            None,
             None,
             "7/31 12:00:11",
             1_775_000_011,
@@ -467,6 +470,16 @@ mod tests {
             json!({
                 "user": "mem",
                 "hostname": "vultr",
+                "agent": {
+                    "name": "CLI"
+                },
+                "project": {
+                    "name": "ping-me-in-discord"
+                },
+                "session": {
+                    "id": null,
+                    "name": "interactive"
+                },
                 "codex_thread_id": null,
                 "timestamp": {
                     "local": "7/31 12:00:11",
@@ -518,7 +531,7 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🏠 `mem@vultr`   📅 `7/31 12:00:11`**\nbuild **complete**"
+            "> **🤖 `CLI`   📦 `ping-me-in-discord`   💬 `interactive`**\n> **🏠 `mem@vultr`   📅 `7/31 12:00:11`**\nbuild **complete**"
         );
     }
 
@@ -527,7 +540,10 @@ mod tests {
         let runtime = RuntimeMetadata::fixed(
             "mem",
             "vultr",
+            "Codex",
+            "ping-me-in-discord",
             Some("019fb637"),
+            Some("notification-skill-design"),
             "8/3 12:00:11",
             1_775_000_011,
             "2026-08-03T12:00:11Z",
@@ -540,7 +556,7 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🏠 `mem@vultr`   📅 `8/3 12:00:11`   🧵 `019fb637`**\nbuild complete"
+            "> **🤖 `Codex`   📦 `ping-me-in-discord`   💬 `notification-skill-design`**\n> **🏠 `mem@vultr`   📅 `8/3 12:00:11`   🧵 `019fb637`**\nbuild complete"
         );
     }
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ping Me: Report Turn Outcome"
+  short_description: "Report one outcome before each yield"
+  default_prompt: "Use $ping-me-report-turn-outcome to enable one Discord outcome notification before every yield in this conversation."

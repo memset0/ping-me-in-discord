@@ -1,41 +1,4 @@
-# agent-skill-installation Specification
-
-## Purpose
-
-Allow users to install or refresh the notification skills bundled with the CLI as regular-file copies at a predictable Codex or Claude Code project or user-global location without cloning the source repository.
-
-## Requirements
-
-### Requirement: Skill installation requires an explicit scope
-The CLI SHALL provide `skills install --scope <project|global> [--agent <codex|claude-code>]`. Scope SHALL remain required, while an omitted agent SHALL default to `codex` for compatibility. Codex project scope SHALL resolve to `.codex/skills` in the current directory; Codex global scope SHALL use the `skills` directory of a non-empty `CODEX_HOME`, falling back to `~/.codex/skills`. Claude Code project scope SHALL resolve to `.claude/skills` in the current directory; Claude Code global scope SHALL use the `skills` directory of a non-empty `CLAUDE_CONFIG_DIR`, falling back to `~/.claude/skills`. The command SHALL fail with an actionable diagnostic when it cannot resolve or create the selected destination.
-
-#### Scenario: Install into the current project
-- **WHEN** a user runs `pingme skills install --scope project` from a project root without selecting an agent
-- **THEN** the bundled skills are installed below that directory's `.codex/skills`
-
-#### Scenario: Install into an overridden global home
-- **WHEN** a user runs `pingme skills install --scope global --agent codex` with a non-empty `CODEX_HOME`
-- **THEN** the bundled skills are installed below `${CODEX_HOME}/skills`
-
-#### Scenario: Install into the default global home
-- **WHEN** Codex global scope is selected without `CODEX_HOME` and the user's home directory is available
-- **THEN** the bundled skills are installed below `~/.codex/skills`
-
-#### Scenario: Scope is omitted
-- **WHEN** a user runs `pingme skills install --agent claude-code` without `--scope`
-- **THEN** argument parsing fails without writing any skill files
-
-#### Scenario: Install into a Claude Code project
-- **WHEN** a user runs `pingme skills install --scope project --agent claude-code` from a project root
-- **THEN** the bundled skills are installed below that directory's `.claude/skills`
-
-#### Scenario: Install into an overridden Claude Code configuration directory
-- **WHEN** a user selects Claude Code global scope with a non-empty `CLAUDE_CONFIG_DIR`
-- **THEN** the bundled skills are installed below `${CLAUDE_CONFIG_DIR}/skills`
-
-#### Scenario: Install into the default Claude Code configuration directory
-- **WHEN** Claude Code global scope is selected without `CLAUDE_CONFIG_DIR` and the user's home directory is available
-- **THEN** the bundled skills are installed below `~/.claude/skills`
+## MODIFIED Requirements
 
 ### Requirement: Release binaries contain complete agent skills
 The installed binary SHALL carry one canonical source for the `ping-me-send-message`, `ping-me-report-work-progress`, and `ping-me-report-turn-outcome` instructions and runners. A Codex installation SHALL contain each skill's `SKILL.md`, `agents/openai.yaml`, and `scripts/run-pingme.sh`; a Claude Code installation SHALL copy the same canonical `SKILL.md` and runner but SHALL omit Codex-only `agents/openai.yaml`. Every installed owned path SHALL be a regular file rather than a symbolic link, and the runner SHALL be executable on Unix. Installing the skills SHALL not require Git, network access, a package manager, or a source checkout.

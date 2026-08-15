@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ping Me: Report Work Progress"
+  short_description: "Report progress while work continues"
+  default_prompt: "Use $ping-me-report-work-progress to enable Discord progress notifications for this conversation."

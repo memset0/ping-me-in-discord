@@ -97,7 +97,8 @@ size = 256
 scale = 0.576
 "##;
 
-pub const STARTER_TEMPLATE: &str = r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
+pub const STARTER_TEMPLATE: &str = r#"> **🤖 `{{ runtime.agent.name }}`   📦 `{{ runtime.project.name }}`   💬 `{{ runtime.session.name }}`**
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.session.id %}   🧵 `{{ runtime.session.id }}`{% endif %}**
 {{ message }}"#;
 
 #[derive(Clone, Deserialize)]
@@ -789,10 +790,11 @@ mod tests {
     }
 
     #[test]
-    fn starter_template_matches_the_approved_two_line_layout() {
+    fn starter_template_matches_the_approved_context_header_layout() {
         assert_eq!(
             STARTER_TEMPLATE,
-            r#"> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.codex_thread_id %}   🧵 `{{ runtime.codex_thread_id }}`{% endif %}**
+            r#"> **🤖 `{{ runtime.agent.name }}`   📦 `{{ runtime.project.name }}`   💬 `{{ runtime.session.name }}`**
+> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.session.id %}   🧵 `{{ runtime.session.id }}`{% endif %}**
 {{ message }}"#
         );
         assert_eq!(
