@@ -172,14 +172,14 @@ pingme channels list --json
 
 模板文件以可选 YAML frontmatter 开始，其余部分是 Discord Markdown `content`：
 
-新初始化的 `templates/defaults.md` 使用以下精确布局；可用的元信息依次为 host、project、session title（缺失时 fallback 到完整 session ID）、agent、时间，正文紧接下一行，没有额外空行：
+新初始化的 `templates/defaults.md` 使用以下精确布局：正文在前，可用的元信息紧接在下一行并使用 Discord 的 `-# ` 小号弱化文本；字段依次为 host、project、session title（缺失时 fallback 到完整 session ID）、agent、时间，没有额外空行：
 
 ```jinja
-> **{% if runtime.hostname != "unknown-host" %}🏠 `{% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}`   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 `{{ runtime.project.name }}`   {% endif %}{% if runtime.session.title %}🧵 `{{ runtime.session.title }}`   {% elif runtime.session.id %}🧵 `{{ runtime.session.id }}`   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 `{{ runtime.agent.name }}`   {% endif %}📅 `{{ runtime.timestamp.local }}`**
 {{ message }}
+-# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}
 ```
 
-每个可选字段单独判断：无法取得 host 时省略 house 字段，project 为 `unknown-project` 时省略 package 字段，没有 title 和 ID 时省略 thread 字段，直接 CLI fallback 则省略 agent 字段；时间始终在最后。installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
+`-# ` 必须位于该行开头，Discord 才会把整行显示为小号弱化文本。每个可选字段单独判断：无法取得 host 时省略 house 字段，project 为 `unknown-project` 时省略 package 字段，没有 title 和 ID 时省略 thread 字段，直接 CLI fallback 则省略 agent 字段；时间始终在最后。installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
 
 ```markdown
 ---

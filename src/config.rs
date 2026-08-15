@@ -97,8 +97,8 @@ size = 256
 scale = 0.576
 "##;
 
-pub const STARTER_TEMPLATE: &str = r#"> **{% if runtime.hostname != "unknown-host" %}🏠 `{% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}`   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 `{{ runtime.project.name }}`   {% endif %}{% if runtime.session.title %}🧵 `{{ runtime.session.title }}`   {% elif runtime.session.id %}🧵 `{{ runtime.session.id }}`   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 `{{ runtime.agent.name }}`   {% endif %}📅 `{{ runtime.timestamp.local }}`**
-{{ message }}"#;
+pub const STARTER_TEMPLATE: &str = r#"{{ message }}
+-# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}"#;
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -808,11 +808,11 @@ mod tests {
     }
 
     #[test]
-    fn starter_template_matches_the_approved_context_header_layout() {
+    fn starter_template_matches_the_approved_context_footer_layout() {
         assert_eq!(
             STARTER_TEMPLATE,
-            r#"> **{% if runtime.hostname != "unknown-host" %}🏠 `{% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}`   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 `{{ runtime.project.name }}`   {% endif %}{% if runtime.session.title %}🧵 `{{ runtime.session.title }}`   {% elif runtime.session.id %}🧵 `{{ runtime.session.id }}`   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 `{{ runtime.agent.name }}`   {% endif %}📅 `{{ runtime.timestamp.local }}`**
-{{ message }}"#
+            r#"{{ message }}
+-# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}"#
         );
         assert_eq!(
             include_str!("../examples/templates/defaults.md"),

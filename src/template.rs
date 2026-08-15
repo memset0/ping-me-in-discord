@@ -548,7 +548,7 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🏠 `mem@vultr`   📦 `ping-me-in-discord`   📅 `7/31 12:00:11`**\nbuild **complete**"
+            "build **complete**\n-# 🏠 mem@vultr   📦 ping-me-in-discord   📅 7/31 12:00:11"
         );
     }
 
@@ -573,7 +573,7 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🏠 `mem@vultr`   📦 `ping-me-in-discord`   🧵 `notification-skill-design`   🤖 `Codex`   📅 `8/3 12:00:11`**\nbuild complete"
+            "build complete\n-# 🏠 mem@vultr   📦 ping-me-in-discord   🧵 notification-skill-design   🤖 Codex   📅 8/3 12:00:11"
         );
     }
 
@@ -598,7 +598,7 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🏠 `mem@vultr`   📦 `ping-me-in-discord`   🧵 `019fb637-full-session-id`   🤖 `Codex`   📅 `8/3 12:00:11`**\nbuild complete"
+            "build complete\n-# 🏠 mem@vultr   📦 ping-me-in-discord   🧵 019fb637-full-session-id   🤖 Codex   📅 8/3 12:00:11"
         );
     }
 
@@ -623,7 +623,7 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **📅 `8/3 12:00:11`**\nbuild complete"
+            "build complete\n-# 📅 8/3 12:00:11"
         );
     }
 
