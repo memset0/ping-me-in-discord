@@ -158,15 +158,14 @@ The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, a
 
 ## Templates
 
-`[defaults].template = "defaults"` selects `templates/defaults.md`. It may instead contain an absolute path ending in `.md`. A new default template places agent, project, session, host, local time, and an optional session ID above the message without extra blank lines:
+`[defaults].template = "defaults"` selects `templates/defaults.md`. It may instead contain an absolute path ending in `.md`. A new default template places available host, project, session, and agent context in one line, followed by the local time and the message without an extra blank line. The thread segment prefers the session title and falls back to the full session ID:
 
 ```jinja
-> **🤖 `{{ runtime.agent.name }}`   📦 `{{ runtime.project.name }}`   💬 `{{ runtime.session.name }}`**
-> **🏠 `{{ runtime.user }}@{{ runtime.hostname }}`   📅 `{{ runtime.timestamp.local }}`{% if runtime.session.id %}   🧵 `{{ runtime.session.id }}`{% endif %}**
+> **{% if runtime.hostname != "unknown-host" %}🏠 `{% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}`   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 `{{ runtime.project.name }}`   {% endif %}{% if runtime.session.title %}🧵 `{{ runtime.session.title }}`   {% elif runtime.session.id %}🧵 `{{ runtime.session.id }}`   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 `{{ runtime.agent.name }}`   {% endif %}📅 `{{ runtime.timestamp.local }}`**
 {{ message }}
 ```
 
-The template body preserves Discord Markdown. The reserved `runtime` object also provides `runtime.timestamp.unix`, `runtime.timestamp.iso8601`, and `runtime.codex_thread_id` as a compatibility alias for `runtime.session.id`. Direct CLI use falls back to agent `CLI`, the current directory name, and session `interactive`. Agent runners supply richer values through `PINGME_AGENT_NAME`, `PINGME_PROJECT_NAME`, `PINGME_SESSION_NAME`, and `PINGME_SESSION_ID`. Hostnames, project names, and session identifiers may be internal metadata, so remove fields from custom templates when they should not be sent.
+The template body preserves Discord Markdown. `runtime.session.title` is optional and comes from `PINGME_SESSION_NAME`; the required `runtime.session.name` remains available to older custom templates with `session-<ID prefix>` or `interactive` fallbacks. The reserved `runtime` object also provides `runtime.timestamp.unix`, `runtime.timestamp.iso8601`, and `runtime.codex_thread_id` as a compatibility alias for `runtime.session.id`. Direct CLI use falls back to agent `CLI` and the current directory name, while agent runners supply richer values through `PINGME_AGENT_NAME`, `PINGME_PROJECT_NAME`, `PINGME_SESSION_NAME`, and `PINGME_SESSION_ID`. The starter header omits unavailable context and its direct-CLI agent fallback. Hostnames, project names, and session identifiers may be internal metadata, so remove fields from custom templates when they should not be sent.
 
 Templates can use YAML frontmatter for message metadata and Discord payload fields:
 

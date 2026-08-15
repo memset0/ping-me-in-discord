@@ -40,12 +40,12 @@ Send one intentional free-form Discord message without reading the secret-bearin
      --channel test --avatar release --dry-run "message content"
    ```
 
-10. Inspect the rendered JSON and require its `content` to contain the exact `agent_session_id`. If it does not, use `--report-only` for the selected channel and stop; the user's existing template needs the coding-agent session field.
+10. Inspect the rendered JSON. Require the rendered `content` to contain the exact session name when one was established, or the exact agent session ID otherwise. If it does not, use `--report-only` for the selected channel and stop; the user's existing template needs the expected coding-agent session label.
 11. Repeat the same invocation without `--dry-run` exactly once. Report the returned Discord message ID to the user.
 
 ## Failure rules
 
 - The runner automatically calls `pingme report-error` once after any wrapped CLI failure and preserves the original exit status.
-- Use `--report-only` for preflight failures such as a missing coding-agent session ID or a rendered template that omits it.
+- Use `--report-only` for preflight failures such as a missing coding-agent session ID or a rendered template that omits the expected session label.
 - Do not retry a failed normal message automatically. Do not wrap or directly call `report-error` yourself.
 - If the error report also fails, surface the local diagnostic; the runner never recurses.

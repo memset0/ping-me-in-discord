@@ -59,7 +59,7 @@ Use `Next:` only for `needs-input` or when another concrete user action is usefu
      --error-channel test -- --channel test --avatar success --dry-run "$message"
    ```
 
-9. Require rendered `content` to contain the exact session ID. If absent, use `--report-only` and continue to the final response.
+9. Require the rendered `content` to contain the exact session name when one was established, or the exact agent session ID otherwise. If absent, use `--report-only` and continue to the final response.
 10. Repeat the invocation without `--dry-run` exactly once. Whether it succeeds or fails, immediately return the already-prepared user-facing response; do not send a second outcome.
 
 ## Failure rules

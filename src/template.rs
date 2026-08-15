@@ -494,7 +494,8 @@ mod tests {
                 },
                 "session": {
                     "id": null,
-                    "name": "interactive"
+                    "name": "interactive",
+                    "title": null
                 },
                 "codex_thread_id": null,
                 "timestamp": {
@@ -547,12 +548,12 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🤖 `CLI`   📦 `ping-me-in-discord`   💬 `interactive`**\n> **🏠 `mem@vultr`   📅 `7/31 12:00:11`**\nbuild **complete**"
+            "> **🏠 `mem@vultr`   📦 `ping-me-in-discord`   📅 `7/31 12:00:11`**\nbuild **complete**"
         );
     }
 
     #[test]
-    fn starter_template_appends_the_codex_thread_when_available() {
+    fn starter_template_prefers_the_session_title_and_orders_all_context() {
         let runtime = RuntimeMetadata::fixed(
             "mem",
             "vultr",
@@ -572,7 +573,57 @@ mod tests {
 
         assert_eq!(
             rendered.payload["content"],
-            "> **🤖 `Codex`   📦 `ping-me-in-discord`   💬 `notification-skill-design`**\n> **🏠 `mem@vultr`   📅 `8/3 12:00:11`   🧵 `019fb637`**\nbuild complete"
+            "> **🏠 `mem@vultr`   📦 `ping-me-in-discord`   🧵 `notification-skill-design`   🤖 `Codex`   📅 `8/3 12:00:11`**\nbuild complete"
+        );
+    }
+
+    #[test]
+    fn starter_template_falls_back_to_the_full_session_id() {
+        let runtime = RuntimeMetadata::fixed(
+            "mem",
+            "vultr",
+            "Codex",
+            "ping-me-in-discord",
+            Some("019fb637-full-session-id"),
+            None,
+            "8/3 12:00:11",
+            1_775_000_011,
+            "2026-08-03T12:00:11Z",
+        );
+        let context =
+            build_context_with_runtime(Some("build complete".to_owned()), None, &[], runtime)
+                .unwrap();
+        let source = render_source(crate::config::STARTER_TEMPLATE, &context).unwrap();
+        let rendered = parse_rendered("defaults", &source).unwrap();
+
+        assert_eq!(
+            rendered.payload["content"],
+            "> **🏠 `mem@vultr`   📦 `ping-me-in-discord`   🧵 `019fb637-full-session-id`   🤖 `Codex`   📅 `8/3 12:00:11`**\nbuild complete"
+        );
+    }
+
+    #[test]
+    fn starter_template_omits_unavailable_optional_context() {
+        let runtime = RuntimeMetadata::fixed(
+            "unknown-user",
+            "unknown-host",
+            "CLI",
+            "unknown-project",
+            None,
+            None,
+            "8/3 12:00:11",
+            1_775_000_011,
+            "2026-08-03T12:00:11Z",
+        );
+        let context =
+            build_context_with_runtime(Some("build complete".to_owned()), None, &[], runtime)
+                .unwrap();
+        let source = render_source(crate::config::STARTER_TEMPLATE, &context).unwrap();
+        let rendered = parse_rendered("defaults", &source).unwrap();
+
+        assert_eq!(
+            rendered.payload["content"],
+            "> **📅 `8/3 12:00:11`**\nbuild complete"
         );
     }
 

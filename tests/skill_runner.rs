@@ -21,6 +21,10 @@ const OUTCOME_RUNNER: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/.codex/skills/ping-me-report-turn-outcome/scripts/run-pingme.sh"
 );
+const SEND_SKILL: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/.codex/skills/ping-me-send-message/SKILL.md"
+);
 const PROGRESS_SKILL: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/.codex/skills/ping-me-report-work-progress/SKILL.md"
@@ -165,6 +169,19 @@ fn automatic_skills_define_conversation_activation_and_disable_rules() {
 }
 
 #[test]
+fn bundled_skills_validate_the_title_first_session_label() {
+    const EXPECTED_RULE: &str = "Require the rendered `content` to contain the exact session name when one was established, or the exact agent session ID otherwise.";
+
+    for path in [SEND_SKILL, PROGRESS_SKILL, OUTCOME_SKILL] {
+        let skill = fs::read_to_string(path).unwrap();
+        assert!(
+            skill.contains(EXPECTED_RULE),
+            "missing title-first session-label rule in {path}"
+        );
+    }
+}
+
+#[test]
 fn automatic_skill_examples_close_before_remaining_workflow() {
     for path in [PROGRESS_SKILL, OUTCOME_SKILL] {
         let skill = fs::read_to_string(path).unwrap();
@@ -290,7 +307,7 @@ fn runner_exports_explicit_context_and_compatibility_session() {
 }
 
 #[test]
-fn runner_infers_agent_project_and_deterministic_session_name() {
+fn runner_infers_agent_and_project_without_inventing_a_session_title() {
     let root = TempDir::new().unwrap();
     let (_binary, log) = fake_pingme(root.path());
 
@@ -307,9 +324,7 @@ fn runner_infers_agent_project_and_deterministic_session_name() {
     let project = root.path().file_name().unwrap().to_string_lossy();
     assert_eq!(
         fs::read_to_string(log).unwrap(),
-        format!(
-            "context:Claude Code|{project}|session-12345678|1234567890-claude|1234567890-claude\n"
-        )
+        format!("context:Claude Code|{project}||1234567890-claude|1234567890-claude\n")
     );
 }
 

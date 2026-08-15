@@ -102,20 +102,15 @@ if [ -z "$notify_project_name" ]; then
     notify_project_name=unknown-project
 fi
 
-if [ -z "$notify_session_name" ]; then
-    if [ -n "$notify_session_id" ]; then
-        notify_session_remainder=${notify_session_id#????????}
-        notify_session_prefix=${notify_session_id%"$notify_session_remainder"}
-        notify_session_name=session-$notify_session_prefix
-    else
-        notify_session_name=interactive
-    fi
-fi
-
 PINGME_AGENT_NAME=$notify_agent_name
 PINGME_PROJECT_NAME=$notify_project_name
-PINGME_SESSION_NAME=$notify_session_name
-export PINGME_AGENT_NAME PINGME_PROJECT_NAME PINGME_SESSION_NAME
+export PINGME_AGENT_NAME PINGME_PROJECT_NAME
+if [ -n "$notify_session_name" ]; then
+    PINGME_SESSION_NAME=$notify_session_name
+    export PINGME_SESSION_NAME
+else
+    unset PINGME_SESSION_NAME
+fi
 if [ -n "$notify_session_id" ]; then
     PINGME_SESSION_ID=$notify_session_id
     CODEX_THREAD_ID=$notify_session_id

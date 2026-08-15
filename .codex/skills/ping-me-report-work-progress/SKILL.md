@@ -59,7 +59,7 @@ Include `Next:` because work continues. Exclude logs, stack traces, credentials,
      --error-channel test -- --channel test --avatar progress --dry-run "$message"
    ```
 
-8. Require the rendered `content` to contain the exact session ID. If absent, use `--report-only`, skip the notification, and continue work.
+8. Require the rendered `content` to contain the exact session name when one was established, or the exact agent session ID otherwise. If absent, use `--report-only`, skip the notification, and continue work.
 9. Repeat the invocation without `--dry-run` exactly once, then continue working.
 
 ## Failure rules

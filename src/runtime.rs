@@ -34,6 +34,7 @@ pub(crate) struct RuntimeProject {
 pub(crate) struct RuntimeSession {
     pub(crate) id: Option<String>,
     pub(crate) name: String,
+    pub(crate) title: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -85,7 +86,9 @@ impl RuntimeMetadata {
     ) -> Self {
         let timestamp = now.timestamp();
         let session_id = normalize_optional_identity(session_id.as_deref());
-        let session_name = normalize_optional_identity(session_name.as_deref())
+        let session_title = normalize_optional_identity(session_name.as_deref());
+        let session_name = session_title
+            .clone()
             .unwrap_or_else(|| default_session_name(session_id.as_deref()));
         Self {
             user: normalize_identity(user.as_deref(), UNKNOWN_USER),
@@ -99,6 +102,7 @@ impl RuntimeMetadata {
             session: RuntimeSession {
                 id: session_id.clone(),
                 name: session_name,
+                title: session_title,
             },
             codex_thread_id: session_id,
             timestamp: RuntimeTimestamp {
@@ -123,6 +127,7 @@ impl RuntimeMetadata {
         iso8601: &str,
     ) -> Self {
         let session_id = normalize_optional_identity(session_id);
+        let session_title = normalize_optional_identity(session_name);
         Self {
             user: normalize_identity(Some(user), UNKNOWN_USER),
             hostname: normalize_identity(Some(hostname), UNKNOWN_HOST),
@@ -134,8 +139,10 @@ impl RuntimeMetadata {
             },
             session: RuntimeSession {
                 id: session_id.clone(),
-                name: normalize_optional_identity(session_name)
+                name: session_title
+                    .clone()
                     .unwrap_or_else(|| default_session_name(session_id.as_deref())),
+                title: session_title,
             },
             codex_thread_id: session_id,
             timestamp: RuntimeTimestamp {
@@ -255,6 +262,10 @@ mod tests {
         assert_eq!(runtime.project.name, "ping-me-in-discord");
         assert_eq!(runtime.session.id.as_deref(), Some("thread-123"));
         assert_eq!(runtime.session.name, "notification-skill-design");
+        assert_eq!(
+            runtime.session.title.as_deref(),
+            Some("notification-skill-design")
+        );
         assert_eq!(runtime.codex_thread_id.as_deref(), Some("thread-123"));
         assert_eq!(runtime.timestamp.local, "7/31 12:00:11");
         assert_eq!(runtime.timestamp.unix, now.timestamp().as_second());
@@ -319,6 +330,7 @@ mod tests {
         assert_eq!(runtime.agent.name, DIRECT_CLI_AGENT);
         assert_eq!(runtime.project.name, UNKNOWN_PROJECT);
         assert_eq!(runtime.session.name, "session-12345678");
+        assert_eq!(runtime.session.title, None);
     }
 
     #[test]
@@ -337,5 +349,6 @@ mod tests {
         assert_eq!(runtime.session.id, None);
         assert_eq!(runtime.codex_thread_id, None);
         assert_eq!(runtime.session.name, INTERACTIVE_SESSION);
+        assert_eq!(runtime.session.title, None);
     }
 }
