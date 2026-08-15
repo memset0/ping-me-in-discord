@@ -10,7 +10,11 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 use url::Url;
 
-use crate::{avatar::AvatarSelection, config::validate_template_name, runtime::RuntimeMetadata};
+use crate::{
+    avatar::AvatarSelection,
+    config::{validate_template_name, validate_template_selector},
+    runtime::RuntimeMetadata,
+};
 
 const PAYLOAD_FIELDS: &[&str] = &[
     "username",
@@ -149,22 +153,34 @@ pub fn validate_directory(templates_directory: &Path, default_template: &str) ->
         "default template does not exist: {}",
         default_path.display()
     );
+    validate_template_file(&default_path)?;
 
     for name in list(templates_directory)? {
         let path = template_path(templates_directory, &name)?;
-        let source = fs::read_to_string(&path)
-            .with_context(|| format!("could not read template {}", path.display()))?;
-        compile_source(&source)
-            .with_context(|| format!("template syntax is invalid in {}", path.display()))?;
-        validate_frontmatter_delimiters(&source)
-            .with_context(|| format!("frontmatter is invalid in {}", path.display()))?;
+        if path != default_path {
+            validate_template_file(&path)?;
+        }
     }
     Ok(())
 }
 
-fn template_path(directory: &Path, name: &str) -> Result<PathBuf> {
-    validate_template_name(name)?;
-    Ok(directory.join(format!("{name}.md")))
+fn template_path(directory: &Path, selector: &str) -> Result<PathBuf> {
+    validate_template_selector(selector)?;
+    let path = Path::new(selector);
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+
+    Ok(directory.join(format!("{selector}.md")))
+}
+
+fn validate_template_file(path: &Path) -> Result<()> {
+    let source = fs::read_to_string(path)
+        .with_context(|| format!("could not read template {}", path.display()))?;
+    compile_source(&source)
+        .with_context(|| format!("template syntax is invalid in {}", path.display()))?;
+    validate_frontmatter_delimiters(&source)
+        .with_context(|| format!("frontmatter is invalid in {}", path.display()))
 }
 
 fn environment() -> Environment<'static> {
@@ -611,6 +627,58 @@ embeds:
             .unwrap_err()
             .to_string();
         assert!(error.contains("may contain only"));
+
+        let root = TempDir::new().unwrap();
+        let absolute = root.path().join("nested/../external.md");
+        let error = template_path(Path::new("templates"), absolute.to_str().unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("cannot contain parent-directory"));
+    }
+
+    #[test]
+    fn resolves_named_and_absolute_markdown_templates() {
+        assert_eq!(
+            template_path(Path::new("templates"), "deploy").unwrap(),
+            Path::new("templates/deploy.md")
+        );
+
+        let root = TempDir::new().unwrap();
+        let absolute = root.path().join("external.md");
+        assert_eq!(
+            template_path(Path::new("templates"), absolute.to_str().unwrap()).unwrap(),
+            absolute
+        );
+    }
+
+    #[test]
+    fn rejects_absolute_non_markdown_template_paths() {
+        let root = TempDir::new().unwrap();
+        let absolute = root.path().join("external.txt");
+        let error = template_path(Path::new("templates"), absolute.to_str().unwrap())
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("must end in `.md`"));
+    }
+
+    #[test]
+    fn validates_an_absolute_default_template_outside_the_directory() {
+        let root = TempDir::new().unwrap();
+        let directory = root.path().join("templates");
+        let absolute = root.path().join("external.md");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("named.md"), "named").unwrap();
+        fs::write(&absolute, "{{ message }}").unwrap();
+
+        validate_directory(&directory, absolute.to_str().unwrap()).unwrap();
+
+        fs::write(&absolute, "{{").unwrap();
+        let error = validate_directory(&directory, absolute.to_str().unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("template syntax is invalid"));
+        assert!(error.contains(&absolute.display().to_string()));
     }
 
     #[test]

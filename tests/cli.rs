@@ -195,6 +195,71 @@ embeds:
 }
 
 #[test]
+fn absolute_template_path_renders_outside_the_configured_directory() {
+    let (root, config) = portable_fixture();
+    let external_directory = root.path().join("external");
+    let external_template = external_directory.join("custom.md");
+    fs::create_dir_all(&external_directory).unwrap();
+    fs::write(
+        &external_template,
+        "---\nusername: External Template\n---\nabsolute: {{ message }}",
+    )
+    .unwrap();
+
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "outside",
+            "--template",
+            external_template.to_str().unwrap(),
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"username\": \"External Template\"",
+        ))
+        .stdout(predicate::str::contains(
+            "\"content\": \"absolute: outside\"",
+        ));
+}
+
+#[test]
+fn absolute_configured_default_is_validated_and_rendered() {
+    let (root, config) = portable_fixture();
+    let external_template = root.path().join("configured-default.md");
+    fs::write(&external_template, "configured: {{ message }}").unwrap();
+
+    let escaped_template = external_template
+        .display()
+        .to_string()
+        .replace('\\', "\\\\");
+    let source = fs::read_to_string(&config).unwrap().replace(
+        "template = \"defaults\"",
+        &format!("template = \"{escaped_template}\""),
+    );
+    fs::write(&config, source).unwrap();
+    let config_value = config_argument(&config);
+
+    let mut validate = cargo_bin_cmd!("pingme");
+    validate
+        .args(["--config", &config_value, "config", "validate"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Configuration is valid"));
+
+    let mut send = cargo_bin_cmd!("pingme");
+    send.args(["--config", &config_value, "configured default", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"content\": \"configured: configured default\"",
+        ));
+}
+
+#[test]
 fn configuration_validation_and_template_listing_work_offline() {
     let (_root, config) = portable_fixture();
     let config_value = config_argument(&config);

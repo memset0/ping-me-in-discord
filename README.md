@@ -158,7 +158,7 @@ The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, a
 
 ## Templates
 
-`[defaults].template = "defaults"` selects `templates/defaults.md`. A new default template places agent, project, session, host, local time, and an optional session ID above the message without extra blank lines:
+`[defaults].template = "defaults"` selects `templates/defaults.md`. It may instead contain an absolute path ending in `.md`. A new default template places agent, project, session, host, local time, and an optional session ID above the message without extra blank lines:
 
 ```jinja
 > **🤖 `{{ runtime.agent.name }}`   📦 `{{ runtime.project.name }}`   💬 `{{ runtime.session.name }}`**
@@ -187,9 +187,12 @@ Render a named template with command-line or JSON variables:
 ```console
 pingme send --template deployment --var project=API --var version=v1.2.3
 pingme send --template deployment --data event.json --var actor=manual
+pingme send --template /absolute/path/custom.md 'one-off template'
 pingme templates list
 pingme 'preview only' --dry-run
 ```
+
+A simple template name stays inside the configured templates directory and receives the `.md` extension automatically. An absolute `.md` path is read exactly as supplied, including when it is outside that directory. Relative paths such as `./custom.md` and `../custom.md` remain invalid, and `templates list` lists only named templates in the configured directory.
 
 Dry-run mode does not contact Discord or provision webhooks. Undefined variables fail before delivery, and mention parsing is disabled by default unless a template explicitly configures `allowed_mentions`. Complex embeds, components, polls, and allowed mentions belong in frontmatter; the [configuration reference](docs/configuration.md) lists every supported field.
 

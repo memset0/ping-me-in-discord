@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs::{self, OpenOptions},
     io::Write,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use anyhow::{Context, Result, ensure};
@@ -288,7 +288,7 @@ impl Config {
         if let Some(url) = nonempty(self.discord.webhook_url.as_deref()) {
             validate_https_url(url, "discord.webhook_url")?;
         }
-        validate_template_name(&self.defaults.template)?;
+        validate_template_selector(&self.defaults.template)?;
         self.resolve_channel(self.defaults.channel.as_deref())?;
         validate_optional_username(self.defaults.username.as_deref(), "defaults.username")?;
         if let Some(default_avatar) = &self.defaults.avatar {
@@ -516,6 +516,25 @@ pub fn validate_template_name(name: &str) -> Result<()> {
         "template name may contain only ASCII letters, digits, `-`, and `_`"
     );
     Ok(())
+}
+
+pub fn validate_template_selector(selector: &str) -> Result<()> {
+    let path = Path::new(selector);
+    if path.is_absolute() {
+        ensure!(
+            !path
+                .components()
+                .any(|component| matches!(component, Component::ParentDir)),
+            "absolute template path cannot contain parent-directory components"
+        );
+        ensure!(
+            path.extension().and_then(|extension| extension.to_str()) == Some("md"),
+            "absolute template path must end in `.md`"
+        );
+        return Ok(());
+    }
+
+    validate_template_name(selector)
 }
 
 fn apply_environment_overrides(config: &mut Config) {

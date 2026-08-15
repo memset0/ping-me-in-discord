@@ -78,8 +78,8 @@ pub struct SendArgs {
 
 #[derive(Debug, Args, Default)]
 pub struct SendOptions {
-    /// Template name without the .md extension.
-    #[arg(long)]
+    /// Template name or absolute path to a .md file.
+    #[arg(long, value_name = "TEMPLATE")]
     pub template: Option<String>,
 
     /// Discord channel ID or alias from the [channels] configuration table.

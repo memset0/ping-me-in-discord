@@ -156,7 +156,7 @@ pingme channels list --json
 
 | CLI argument | frontmatter / `[defaults]` | 说明 |
 | --- | --- | --- |
-| `--template` | `[defaults].template` | 模板名称；frontmatter 不递归选择模板 |
+| `--template` | `[defaults].template` | 模板名称，或以 `.md` 结尾的绝对路径；frontmatter 不递归选择模板 |
 | `--channel` | `channel` | channel alias 或数字 ID |
 | `--username` | `username` | 当前消息显示的 webhook 用户名 |
 | `--avatar` | `avatar` | `[avatars.<name>]` profile |
@@ -218,7 +218,7 @@ thread_id: "123456789012345678"
 
 Embed 的 `color` 可以直接写 `#RRGGBB`，CLI 会转换成 Discord 所需的整数。模板必须在 `content`、`embeds`、`components` 或 `poll` 中至少产生一项。
 
-模板名只允许 ASCII 字母、数字、`-` 和 `_`，因此不能通过模板名读取 `templates/` 外部文件。
+简单模板名只允许 ASCII 字母、数字、`-` 和 `_`，并解析为配置模板目录中的 `<name>.md`。也可以通过 `--template /absolute/path/custom.md` 或 `[defaults].template` 指定以 `.md` 结尾的绝对路径；该文件可以位于配置模板目录之外，并按给出的路径直接读取。`./custom.md`、`../custom.md` 等相对路径仍会被拒绝，`templates list` 也仍只列出配置模板目录中的命名模板。
 
 ## 变量
 
