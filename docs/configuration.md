@@ -159,6 +159,7 @@ pingme channels list --json
 | `--template` | `[defaults].template` | 模板名称，或以 `.md` 结尾的绝对路径；frontmatter 不递归选择模板 |
 | `--channel` | `channel` | channel alias 或数字 ID |
 | `--username` | `username` | 当前消息显示的 webhook 用户名 |
+| `--host` | — | 仅当前发送使用的完整 runtime host 标签 |
 | `--avatar` | `avatar` | `[avatars.<name>]` profile |
 | `--avatar-url` | `avatar_url` | HTTPS 远程头像 |
 | `--thread-id` | `thread_id` | webhook channel 中已有 thread 的 ID |
@@ -167,6 +168,7 @@ pingme channels list --json
 
 `--avatar` 和其它头像 source 是一个整体覆盖项，不会把 CLI 的头像类型与下层 profile 的颜色或字体混合。
 `thread_id` 和 `thread_name` 互斥，因为前者选择已有 thread，后者请求 Discord 创建新 thread。
+`--host` 不参与 frontmatter / `[defaults]` 分层。它直接替换完整的 `runtime.host`：传入 `mukai-h20` 时不显示系统用户，传入 `root@mukai-h20` 时保留给出的用户部分；未指定时自动生成为 `user@hostname`，用户不可用时只使用 hostname。显式空白值会报错。`--username` 仍然只控制 Discord webhook 显示名，两者互不影响。
 
 ## Template frontmatter
 
@@ -176,10 +178,10 @@ pingme channels list --json
 
 ```jinja
 {{ message }}
--# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}
+-# {% if runtime.host %}🏠 {{ runtime.host }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}
 ```
 
-`-# ` 必须位于该行开头，Discord 才会把整行显示为小号弱化文本。每个可选字段单独判断：无法取得 host 时省略 house 字段，project 为 `unknown-project` 时省略 package 字段，没有 title 和 ID 时省略 thread 字段，直接 CLI fallback 则省略 agent 字段；时间始终在最后。installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
+`-# ` 必须位于该行开头，Discord 才会把整行显示为小号弱化文本。每个可选字段单独判断：`runtime.host` 不存在时省略 house 字段，project 为 `unknown-project` 时省略 package 字段，没有 title 和 ID 时省略 thread 字段，直接 CLI fallback 则省略 agent 字段；时间始终在最后。installer 只替换二进制，不修改模板；不带 `--force` 的初始化也拒绝覆盖已有文件。已有用户可以手动采用上面的模板，而不必变更 `config.toml` 或凭据。
 
 ```markdown
 ---
@@ -234,6 +236,7 @@ MiniJinja 使用严格 undefined 模式：
 | --- | --- |
 | `runtime.user` | 当前系统用户；不可用时为 `unknown-user` |
 | `runtime.hostname` | 当前 hostname；不可用时为 `unknown-host` |
+| `runtime.host` | 可选的完整显示标签；默认是 `user@hostname`，可由 `--host` 整体替换 |
 | `runtime.agent.name` | agent 名称；自动识别 Codex/Claude Code，直接调用默认为 `CLI` |
 | `runtime.project.name` | project 名称；默认取当前目录 basename，不可用时为 `unknown-project` |
 | `runtime.session.id` | 可选的当前 agent 会话 ID；与 Discord `thread_id` 无关 |
@@ -244,9 +247,9 @@ MiniJinja 使用严格 undefined 模式：
 | `runtime.timestamp.unix` | Unix 整数秒 |
 | `runtime.timestamp.iso8601` | UTC ISO 8601 时间 |
 
-agent 上下文可以分别通过 `PINGME_AGENT_NAME`、`PINGME_PROJECT_NAME`、`PINGME_SESSION_NAME` 和 `PINGME_SESSION_ID` 显式提供，空值会被忽略。显式的 `PINGME_SESSION_NAME` 会同时成为 `runtime.session.title` 和兼容字段 `runtime.session.name`；未提供时只为后者生成 fallback。session ID 的完整优先级是 `PINGME_SESSION_ID`、`CLAUDE_CODE_SESSION_ID`、`CODEX_THREAD_ID`。所有上下文字段都会压缩为空白分隔的单行值，并把反引号替换为单引号，以安全放入 Discord inline code。
+agent 上下文可以分别通过 `PINGME_AGENT_NAME`、`PINGME_PROJECT_NAME`、`PINGME_SESSION_NAME` 和 `PINGME_SESSION_ID` 显式提供，空值会被忽略。显式的 `PINGME_SESSION_NAME` 会同时成为 `runtime.session.title` 和兼容字段 `runtime.session.name`；未提供时只为后者生成 fallback。session ID 的完整优先级是 `PINGME_SESSION_ID`、`CLAUDE_CODE_SESSION_ID`、`CODEX_THREAD_ID`。所有上下文字段都会压缩为空白分隔的单行值，并把反引号替换为单引号，以安全显示为一行 Discord 文本。`--host` 只替换 `runtime.host`，不会修改兼容字段 `runtime.user` 与 `runtime.hostname`；普通的 `--var host=...` 也只创建顶层模板变量 `host`。
 
-顶层键 `runtime` 由 CLI 保留。`--data` 中包含该键或传入 `--var runtime=...` 时会在模板渲染和网络访问前报错。默认模板会发送系统用户、hostname、agent、project 和 session 元数据；不希望暴露这些名称时，应编辑本机 `defaults.md` 删除对应字段或改用自己的标签。
+顶层键 `runtime` 由 CLI 保留。`--data` 中包含该键或传入 `--var runtime=...` 时会在模板渲染和网络访问前报错。默认模板会发送完整 host 标签、agent、project 和 session 元数据；不希望暴露这些名称时，应编辑本机 `defaults.md` 删除对应字段或通过 `--host` 使用自己的标签。
 
 变量来源按优先级由低到高为：
 

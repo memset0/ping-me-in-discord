@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use anyhow::{Result, ensure};
 use jiff::Zoned;
 use serde::Serialize;
 
@@ -13,6 +14,7 @@ const INTERACTIVE_SESSION: &str = "interactive";
 pub(crate) struct RuntimeMetadata {
     pub(crate) user: String,
     pub(crate) hostname: String,
+    pub(crate) host: Option<String>,
     pub(crate) agent: RuntimeAgent,
     pub(crate) project: RuntimeProject,
     pub(crate) session: RuntimeSession,
@@ -45,7 +47,7 @@ pub(crate) struct RuntimeTimestamp {
 }
 
 impl RuntimeMetadata {
-    pub(crate) fn capture() -> Self {
+    pub(crate) fn capture(host_override: Option<&str>) -> Result<Self> {
         let generic_session_id = environment_value("PINGME_SESSION_ID");
         let claude_session_id = environment_value("CLAUDE_CODE_SESSION_ID");
         let codex_thread_id = environment_value("CODEX_THREAD_ID");
@@ -72,6 +74,7 @@ impl RuntimeMetadata {
             session_name,
             &now,
         )
+        .with_host_override(host_override)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -90,9 +93,13 @@ impl RuntimeMetadata {
         let session_name = session_title
             .clone()
             .unwrap_or_else(|| default_session_name(session_id.as_deref()));
+        let user = normalize_identity(user.as_deref(), UNKNOWN_USER);
+        let hostname = normalize_identity(hostname.as_deref(), UNKNOWN_HOST);
+        let host = automatic_host(&user, &hostname);
         Self {
-            user: normalize_identity(user.as_deref(), UNKNOWN_USER),
-            hostname: normalize_identity(hostname.as_deref(), UNKNOWN_HOST),
+            user,
+            hostname,
+            host,
             agent: RuntimeAgent {
                 name: normalize_identity(agent_name.as_deref(), DIRECT_CLI_AGENT),
             },
@@ -113,6 +120,18 @@ impl RuntimeMetadata {
         }
     }
 
+    pub(crate) fn with_host_override(mut self, host_override: Option<&str>) -> Result<Self> {
+        if let Some(host_override) = host_override {
+            let host = normalize_inline_code(host_override);
+            ensure!(
+                !host.is_empty(),
+                "`--host` must contain a non-whitespace label"
+            );
+            self.host = Some(host);
+        }
+        Ok(self)
+    }
+
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn fixed(
@@ -128,9 +147,13 @@ impl RuntimeMetadata {
     ) -> Self {
         let session_id = normalize_optional_identity(session_id);
         let session_title = normalize_optional_identity(session_name);
+        let user = normalize_identity(Some(user), UNKNOWN_USER);
+        let hostname = normalize_identity(Some(hostname), UNKNOWN_HOST);
+        let host = automatic_host(&user, &hostname);
         Self {
-            user: normalize_identity(Some(user), UNKNOWN_USER),
-            hostname: normalize_identity(Some(hostname), UNKNOWN_HOST),
+            user,
+            hostname,
+            host,
             agent: RuntimeAgent {
                 name: normalize_identity(Some(agent_name), DIRECT_CLI_AGENT),
             },
@@ -151,6 +174,16 @@ impl RuntimeMetadata {
                 iso8601: iso8601.to_owned(),
             },
         }
+    }
+}
+
+fn automatic_host(user: &str, hostname: &str) -> Option<String> {
+    if hostname == UNKNOWN_HOST {
+        None
+    } else if user == UNKNOWN_USER {
+        Some(hostname.to_owned())
+    } else {
+        Some(format!("{user}@{hostname}"))
     }
 }
 
@@ -259,6 +292,7 @@ mod tests {
         );
 
         assert_eq!(runtime.agent.name, "Codex");
+        assert_eq!(runtime.host.as_deref(), Some("mem@vultr"));
         assert_eq!(runtime.project.name, "ping-me-in-discord");
         assert_eq!(runtime.session.id.as_deref(), Some("thread-123"));
         assert_eq!(runtime.session.name, "notification-skill-design");
@@ -327,6 +361,7 @@ mod tests {
 
         assert_eq!(runtime.user, UNKNOWN_USER);
         assert_eq!(runtime.hostname, UNKNOWN_HOST);
+        assert_eq!(runtime.host, None);
         assert_eq!(runtime.agent.name, DIRECT_CLI_AGENT);
         assert_eq!(runtime.project.name, UNKNOWN_PROJECT);
         assert_eq!(runtime.session.name, "session-12345678");
@@ -350,5 +385,52 @@ mod tests {
         assert_eq!(runtime.codex_thread_id, None);
         assert_eq!(runtime.session.name, INTERACTIVE_SESSION);
         assert_eq!(runtime.session.title, None);
+    }
+
+    #[test]
+    fn automatic_host_omits_an_unavailable_user() {
+        assert_eq!(
+            automatic_host(UNKNOWN_USER, "vultr").as_deref(),
+            Some("vultr")
+        );
+        assert_eq!(automatic_host("mem", UNKNOWN_HOST), None);
+    }
+
+    #[test]
+    fn explicit_host_replaces_only_the_complete_label() {
+        let now: Zoned = "2026-07-31T12:00:11+00:00[UTC]".parse().unwrap();
+        let runtime = RuntimeMetadata::from_zoned(
+            Some("root".to_owned()),
+            Some("vultr".to_owned()),
+            None,
+            None,
+            None,
+            None,
+            &now,
+        )
+        .with_host_override(Some("  mukai-h20\n`edge`  "))
+        .unwrap();
+
+        assert_eq!(runtime.host.as_deref(), Some("mukai-h20 'edge'"));
+        assert_eq!(runtime.user, "root");
+        assert_eq!(runtime.hostname, "vultr");
+    }
+
+    #[test]
+    fn explicit_blank_host_is_rejected() {
+        let runtime = RuntimeMetadata::fixed(
+            "root",
+            "vultr",
+            "CLI",
+            "project",
+            None,
+            None,
+            "7/31 12:00:11",
+            1_775_000_011,
+            "2026-07-31T12:00:11Z",
+        );
+
+        let error = runtime.with_host_override(Some(" \n\t ")).unwrap_err();
+        assert!(error.to_string().contains("`--host` must contain"));
     }
 }

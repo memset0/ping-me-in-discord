@@ -144,6 +144,7 @@ Common per-message overrides are:
 pingme 'deploy completed' \
   --channel releases \
   --username 'Deploy Bot' \
+  --host 'worker-07' \
   --avatar rocket \
   --no-tts
 ```
@@ -154,6 +155,8 @@ Send fields use one precedence order:
 CLI argument > template frontmatter > config.toml [defaults] > unset
 ```
 
+`--host <LABEL>` is a per-send runtime-metadata override rather than a layered template setting. It replaces the complete host label shown by override-aware templates: pass `mukai-h20` to omit a system user, or `root@mukai-h20` to include one. When omitted, the CLI derives `user@hostname` and falls back to hostname alone if the user is unavailable. An explicitly blank label is rejected. This is independent of `--username`, which controls the Discord webhook display name.
+
 The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, and the one-off avatar options below. If every layer omits an avatar, Discord's default webhook avatar is used.
 
 ## Templates
@@ -162,10 +165,10 @@ The CLI also supports `--thread-id`, `--thread-name`, `--tts`, `--avatar-url`, a
 
 ```jinja
 {{ message }}
--# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}
+-# {% if runtime.host %}🏠 {{ runtime.host }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}
 ```
 
-The template body preserves Discord Markdown. The `-# ` marker must begin its line for Discord to display the footer as subdued subtext. `runtime.session.title` is optional and comes from `PINGME_SESSION_NAME`; the required `runtime.session.name` remains available to older custom templates with `session-<ID prefix>` or `interactive` fallbacks. The reserved `runtime` object also provides `runtime.timestamp.unix`, `runtime.timestamp.iso8601`, and `runtime.codex_thread_id` as a compatibility alias for `runtime.session.id`. Direct CLI use falls back to agent `CLI` and the current directory name, while agent runners supply richer values through `PINGME_AGENT_NAME`, `PINGME_PROJECT_NAME`, `PINGME_SESSION_NAME`, and `PINGME_SESSION_ID`. The starter footer omits unavailable context and its direct-CLI agent fallback. Hostnames, project names, and session identifiers may be internal metadata, so remove fields from custom templates when they should not be sent. Existing local templates are not rewritten during an ordinary upgrade.
+The template body preserves Discord Markdown. The `-# ` marker must begin its line for Discord to display the footer as subdued subtext. `runtime.host` is the override-aware complete display label used by the starter template; the compatibility fields `runtime.user` and `runtime.hostname` remain available to custom templates and are not changed by `--host`. `runtime.session.title` is optional and comes from `PINGME_SESSION_NAME`; the required `runtime.session.name` remains available to older custom templates with `session-<ID prefix>` or `interactive` fallbacks. The reserved `runtime` object also provides `runtime.timestamp.unix`, `runtime.timestamp.iso8601`, and `runtime.codex_thread_id` as a compatibility alias for `runtime.session.id`. Direct CLI use falls back to agent `CLI` and the current directory name, while agent runners supply richer values through `PINGME_AGENT_NAME`, `PINGME_PROJECT_NAME`, `PINGME_SESSION_NAME`, and `PINGME_SESSION_ID`. The starter footer omits unavailable context and its direct-CLI agent fallback. Host labels, project names, and session identifiers may be internal metadata, so remove fields from custom templates when they should not be sent. Existing local templates are not rewritten during an ordinary upgrade.
 
 Templates can use YAML frontmatter for message metadata and Discord payload fields:
 

@@ -59,7 +59,12 @@ async fn send_message(
         .template
         .as_deref()
         .unwrap_or(&loaded.config.defaults.template);
-    let context = template::build_context(message, options.data.as_deref(), &options.variables)?;
+    let context = template::build_context(
+        message,
+        options.data.as_deref(),
+        &options.variables,
+        options.host.as_deref(),
+    )?;
     let rendered = template::render(&loaded.templates_directory, template_name, &context)?;
     let mut rendered = options::resolve(rendered, &options, &loaded.config)?;
 

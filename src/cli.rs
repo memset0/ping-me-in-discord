@@ -90,6 +90,10 @@ pub struct SendOptions {
     #[arg(long, value_name = "NAME")]
     pub username: Option<String>,
 
+    /// Replace the complete runtime host label shown by templates.
+    #[arg(long, value_name = "LABEL")]
+    pub host: Option<String>,
+
     /// Select a named profile from [avatars.<name>].
     #[arg(long, value_name = "PROFILE", group = "avatar_source")]
     pub avatar: Option<String>,

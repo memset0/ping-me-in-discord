@@ -45,8 +45,14 @@ pub fn build_context(
     message: Option<String>,
     data_path: Option<&Path>,
     variables: &[String],
+    host_override: Option<&str>,
 ) -> Result<Value> {
-    build_context_with_runtime(message, data_path, variables, RuntimeMetadata::capture())
+    build_context_with_runtime(
+        message,
+        data_path,
+        variables,
+        RuntimeMetadata::capture(host_override)?,
+    )
 }
 
 fn build_context_with_runtime(
@@ -470,6 +476,7 @@ mod tests {
             Some("from-message".to_owned()),
             Some(&data),
             &["message=from-var".to_owned()],
+            None,
         )
         .unwrap();
 
@@ -486,6 +493,7 @@ mod tests {
             json!({
                 "user": "mem",
                 "hostname": "vultr",
+                "host": "mem@vultr",
                 "agent": {
                     "name": "CLI"
                 },
@@ -535,6 +543,16 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_host_variable_does_not_replace_runtime_host() {
+        let context =
+            build_context_with_runtime(None, None, &["host=worker-1".to_owned()], fixed_runtime())
+                .unwrap();
+
+        assert_eq!(context["host"], "worker-1");
+        assert_eq!(context["runtime"]["host"], "mem@vultr");
+    }
+
+    #[test]
     fn starter_template_renders_exact_layout_and_preserves_markdown() {
         let context = build_context_with_runtime(
             Some("build **complete**".to_owned()),
@@ -549,6 +567,23 @@ mod tests {
         assert_eq!(
             rendered.payload["content"],
             "build **complete**\n-# 🏠 mem@vultr   📦 ping-me-in-discord   📅 7/31 12:00:11"
+        );
+    }
+
+    #[test]
+    fn starter_template_uses_an_explicit_complete_host_label() {
+        let runtime = fixed_runtime()
+            .with_host_override(Some("mukai-h20"))
+            .unwrap();
+        let context =
+            build_context_with_runtime(Some("build complete".to_owned()), None, &[], runtime)
+                .unwrap();
+        let source = render_source(crate::config::STARTER_TEMPLATE, &context).unwrap();
+        let rendered = parse_rendered("defaults", &source).unwrap();
+
+        assert_eq!(
+            rendered.payload["content"],
+            "build complete\n-# 🏠 mukai-h20   📦 ping-me-in-discord   📅 7/31 12:00:11"
         );
     }
 

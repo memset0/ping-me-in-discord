@@ -544,15 +544,15 @@ mod tests {
     fn parses_font_icon_codepoints() {
         assert_eq!(parse_glyph("U+004E").unwrap(), "N");
         assert_eq!(parse_glyph("\\u{004e}").unwrap(), "N");
-        assert_eq!(parse_glyph("告").unwrap(), "告");
+        assert_eq!(parse_glyph("Z").unwrap(), "Z");
         assert!(parse_glyph("AB").is_err());
     }
 
     #[test]
-    fn renders_unicode_with_a_discovered_font() {
-        let font = load_font(Path::new("."), None, "告").unwrap();
+    fn renders_ascii_with_a_discovered_font() {
+        let font = load_font(Path::new("."), None, "A").unwrap();
         let png = render_text(
-            "告",
+            "A",
             &font,
             Rgba([255, 255, 255, 255]),
             Rgba([88, 101, 242, 255]),

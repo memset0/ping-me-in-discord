@@ -62,6 +62,78 @@ fn pingme_shorthand_renders_default_template_without_network() {
 }
 
 #[test]
+fn shorthand_host_override_replaces_the_complete_label_without_changing_username() {
+    let (root, config) = portable_fixture();
+    fs::write(
+        root.path().join("templates/defaults.md"),
+        "{{ runtime.host }}",
+    )
+    .unwrap();
+
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "message",
+            "--host",
+            "mukai-h20",
+            "--username",
+            "Deploy Bot",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"content\": \"mukai-h20\""))
+        .stdout(predicate::str::contains("\"username\": \"Deploy Bot\""));
+}
+
+#[test]
+fn send_subcommand_host_override_preserves_a_supplied_user_prefix() {
+    let (root, config) = portable_fixture();
+    fs::write(
+        root.path().join("templates/defaults.md"),
+        "{{ runtime.host }}",
+    )
+    .unwrap();
+
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "send",
+            "message",
+            "--host",
+            "root@mukai-h20",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"content\": \"root@mukai-h20\""));
+}
+
+#[test]
+fn blank_host_override_is_rejected_before_rendering() {
+    let (_root, config) = portable_fixture();
+    let mut command = cargo_bin_cmd!("pingme");
+    command
+        .args([
+            "--config",
+            &config_argument(&config),
+            "message",
+            "--host",
+            " \n\t ",
+            "--dry-run",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "`--host` must contain a non-whitespace label",
+        ));
+}
+
+#[test]
 fn send_arguments_override_frontmatter_and_resolve_channel_aliases() {
     let (root, config) = portable_fixture();
     fs::write(

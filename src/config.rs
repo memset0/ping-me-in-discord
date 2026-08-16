@@ -98,7 +98,7 @@ scale = 0.576
 "##;
 
 pub const STARTER_TEMPLATE: &str = r#"{{ message }}
--# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}"#;
+-# {% if runtime.host %}🏠 {{ runtime.host }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}"#;
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -812,7 +812,7 @@ mod tests {
         assert_eq!(
             STARTER_TEMPLATE,
             r#"{{ message }}
--# {% if runtime.hostname != "unknown-host" %}🏠 {% if runtime.user != "unknown-user" %}{{ runtime.user }}@{% endif %}{{ runtime.hostname }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}"#
+-# {% if runtime.host %}🏠 {{ runtime.host }}   {% endif %}{% if runtime.project.name != "unknown-project" %}📦 {{ runtime.project.name }}   {% endif %}{% if runtime.session.title %}🧵 {{ runtime.session.title }}   {% elif runtime.session.id %}🧵 {{ runtime.session.id }}   {% endif %}{% if runtime.agent.name != "CLI" %}🤖 {{ runtime.agent.name }}   {% endif %}📅 {{ runtime.timestamp.local }}"#
         );
         assert_eq!(
             include_str!("../examples/templates/defaults.md"),
